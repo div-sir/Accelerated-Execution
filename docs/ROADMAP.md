@@ -45,6 +45,9 @@
 ## v0.5 - Distribution
 
 - [ ] Signed development package.
+- [x] Add CEP prerequisite diagnostics.
+- [x] Add safe development symlink installation.
+- [x] Add unsigned self-contained package output.
 - [ ] Cross-platform FFmpeg setup.
 - [ ] macOS Apple Silicon test.
 - [ ] Windows test.

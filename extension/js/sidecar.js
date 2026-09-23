@@ -45,6 +45,21 @@
     return "node";
   }
 
+  function resolveSidecar(fs, path, extensionPath) {
+    var candidates = [path.join(extensionPath, "sidecar", "cli.mjs")];
+    var realExtensionPath = extensionPath;
+    try {
+      if (typeof fs.realpathSync === "function") realExtensionPath = fs.realpathSync(extensionPath);
+    } catch (error) {
+      realExtensionPath = extensionPath;
+    }
+    candidates.push(path.resolve(realExtensionPath, "..", "sidecar", "cli.mjs"));
+    for (var index = 0; index < candidates.length; index += 1) {
+      if (fs.existsSync(candidates[index])) return candidates[index];
+    }
+    throw new Error("Sidecar CLI not found. Checked: " + candidates.join(", "));
+  }
+
   function extendedEnvironment(environment, platform, path) {
     var result = {};
     Object.keys(environment).forEach(function (key) { result[key] = environment[key]; });
@@ -72,8 +87,7 @@
     var fs = deps.fs;
     var path = deps.path;
     var runtime = deps.process;
-    var cliPath = path.resolve(options.extensionPath, "..", "sidecar", "cli.mjs");
-    if (!fs.existsSync(cliPath)) throw new Error("Sidecar CLI not found: " + cliPath);
+    var cliPath = resolveSidecar(fs, path, options.extensionPath);
 
     var outputDirectory = options.outputDirectory || path.join(
       deps.os.tmpdir(),
@@ -134,6 +148,7 @@
     fileUrl: fileUrl,
     parseEventLine: parseEventLine,
     resolveNode: resolveNode,
+    resolveSidecar: resolveSidecar,
     startAnalysis: startAnalysis
   };
 });

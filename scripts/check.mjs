@@ -17,6 +17,7 @@ const required = [
   "sidecar/ffmpeg.mjs",
   "sidecar/keyframe-score.mjs",
   "sidecar/scene-plan.mjs",
+  "scripts/cep.mjs",
 ];
 
 const missing = required.filter((file) => !fs.existsSync(path.resolve(file)));

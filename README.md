@@ -45,3 +45,26 @@ node sidecar/cli.mjs validate ./scene-plan.json
 ```
 
 Run the repository checks and unit tests with `npm run check`.
+
+## After Effects development install
+
+Install a development symlink into the current user's Adobe CEP extensions directory and inspect
+all runtime prerequisites:
+
+```bash
+npm run cep:install
+npm run cep:doctor
+```
+
+Unsigned development extensions require CEP PlayerDebugMode. If the doctor reports it disabled,
+enable it explicitly with `npm run cep:debug`, restart After Effects, then open the panel from
+**Window → Extensions (Legacy) → Accelerated Execution**. The debug command modifies the current
+user's installed Adobe CSXS preference domains only.
+
+Create a self-contained unsigned directory under `dist/` with:
+
+```bash
+npm run cep:package
+```
+
+The installer refuses to replace an existing directory or a symlink owned by another checkout.

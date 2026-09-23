@@ -5,6 +5,10 @@
   "description": "AI-assisted workflow acceleration for Adobe After Effects.",
   "scripts": {
     "analyze": "node sidecar/cli.mjs analyze",
+    "cep:debug": "node scripts/cep.mjs enable-debug",
+    "cep:doctor": "node scripts/cep.mjs doctor",
+    "cep:install": "node scripts/cep.mjs install",
+    "cep:package": "node scripts/cep.mjs package",
     "check": "node scripts/check.mjs && node --test",
     "doctor": "node sidecar/cli.mjs doctor",
     "proxy": "node sidecar/cli.mjs proxy",

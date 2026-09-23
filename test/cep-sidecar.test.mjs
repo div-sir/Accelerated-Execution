@@ -28,6 +28,20 @@ test("resolveNode discovers common Apple Silicon installations", () => {
   assert.equal(sidecar.resolveNode(fs, {}, "darwin"), "/opt/homebrew/bin/node");
 });
 
+test("resolveSidecar supports packaged and development-symlink layouts", () => {
+  const packagedFs = {
+    existsSync: (filename) => filename === "/package/sidecar/cli.mjs",
+    realpathSync: (filename) => filename,
+  };
+  assert.equal(sidecar.resolveSidecar(packagedFs, path, "/package"), "/package/sidecar/cli.mjs");
+
+  const developmentFs = {
+    existsSync: (filename) => filename === "/repo/sidecar/cli.mjs",
+    realpathSync: () => "/repo/extension",
+  };
+  assert.equal(sidecar.resolveSidecar(developmentFs, path, "/cep/extensions/accelerated"), "/repo/sidecar/cli.mjs");
+});
+
 test("startAnalysis passes paths as spawn arguments and returns parsed output", async () => {
   const child = new EventEmitter();
   child.stdout = new EventEmitter();
