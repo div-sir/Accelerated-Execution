@@ -3,6 +3,7 @@
   "$id": "https://milifix.com/schemas/accelerated-execution/scene-plan.schema.json",
   "title": "Accelerated Execution Scene Plan",
   "type": "object",
+  "additionalProperties": false,
   "required": ["version", "shots"],
   "properties": {
     "version": { "const": "0.1" },
@@ -10,6 +11,7 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["id", "startFrame", "endFrame", "tasks"],
         "properties": {
           "id": { "type": "string" },
@@ -19,6 +21,7 @@
             "type": "array",
             "items": {
               "type": "object",
+              "additionalProperties": false,
               "required": ["type", "engine"],
               "properties": {
                 "type": { "enum": ["roto", "planar-track", "point-track", "camera-track", "static-mask"] },

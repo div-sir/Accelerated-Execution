@@ -28,6 +28,24 @@
   });
 
   document.getElementById("analyze").addEventListener("click", function () {
-    status.textContent = "Foundation ready. FFmpeg analysis is the next implementation step.";
+    status.textContent = "Checking the selected footage…";
+    evalHost("AE_getSelectedFootage()", function (raw) {
+      try {
+        var result = JSON.parse(raw);
+        if (!result.ok) {
+          status.textContent = result.error;
+          return;
+        }
+
+        status.textContent = [
+          result.name,
+          result.width + " × " + result.height,
+          result.duration.toFixed(2) + " s at " + result.frameRate.toFixed(3) + " fps",
+          "Ready for local analysis: " + result.path
+        ].join("\n");
+      } catch (error) {
+        status.textContent = raw;
+      }
+    });
   });
 })();

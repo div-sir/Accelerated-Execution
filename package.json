@@ -4,7 +4,11 @@
   "private": true,
   "description": "AI-assisted workflow acceleration for Adobe After Effects.",
   "scripts": {
-    "check": "node scripts/check.mjs"
+    "analyze": "node sidecar/cli.mjs analyze",
+    "check": "node scripts/check.mjs && node --test",
+    "doctor": "node sidecar/cli.mjs doctor",
+    "proxy": "node sidecar/cli.mjs proxy",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"

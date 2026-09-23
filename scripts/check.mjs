@@ -7,10 +7,14 @@ const required = [
   "docs/ROADMAP.md",
   "extension/CSXS/manifest.xml",
   "extension/index.html",
+  "extension/js/CSInterface.js",
   "extension/js/main.js",
   "extension/jsx/host.jsx",
   "core/schema/scene-plan.schema.json",
+  "sidecar/cli.mjs",
+  "sidecar/ffmpeg.mjs",
   "sidecar/keyframe-score.mjs",
+  "sidecar/scene-plan.mjs",
 ];
 
 const missing = required.filter((file) => !fs.existsSync(path.resolve(file)));

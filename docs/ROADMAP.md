@@ -6,11 +6,12 @@
 - [x] Define task-specific keyframe model.
 - [x] Add CEP panel scaffold.
 - [x] Add ExtendScript host bridge scaffold.
-- [ ] Add FFmpeg discovery and proxy generation.
-- [ ] Add scene-cut detection.
-- [ ] Add local keyframe scoring.
-- [ ] Add JSON scene plan validation.
-- [ ] Add host capability detection.
+- [x] Add FFmpeg discovery.
+- [x] Add proxy generation.
+- [x] Add scene-cut detection.
+- [x] Add local keyframe scoring.
+- [x] Add JSON scene plan validation.
+- [x] Add selected-footage host detection.
 
 ## v0.2 - Smart Mask
 
