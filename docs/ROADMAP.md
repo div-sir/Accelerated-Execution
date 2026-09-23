@@ -30,7 +30,7 @@
 - [x] Execute box targets as time-gated native AE static masks.
 - [x] Add static-mask feather, expansion, and target-coverage preflight.
 - [ ] Route people and objects to AE native matte tools when possible.
-- [ ] Add local SAM-family fallback worker.\n- [x] Add model-agnostic localhost SAM provider adapter.
+- [x] Add local SAM-family fallback worker.\n- [x] Add model-agnostic localhost SAM provider adapter.
 - [x] Add matte quality checks.
 - [x] Detect failed temporal spans and build retry plans.\n- [ ] Execute retry plans automatically.
 
