@@ -10,6 +10,7 @@ const required = [
   "extension/index.html",
   "extension/js/CSInterface.js",
   "extension/js/main.js",
+  "extension/js/preparation.js",
   "extension/js/scene-plan.js",
   "extension/js/sidecar.js",
   "extension/js/task-router.js",
@@ -18,6 +19,10 @@ const required = [
   "sidecar/cli.mjs",
   "sidecar/ffmpeg.mjs",
   "sidecar/keyframe-score.mjs",
+  "sidecar/matte-quality.mjs",
+  "sidecar/retry-plan.mjs",
+  "sidecar/providers/local-sam.mjs",
+  "tools/local_sam_worker.py",
   "sidecar/scene-plan.mjs",
   "scripts/cep.mjs",
 ];
