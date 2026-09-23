@@ -4,6 +4,7 @@
   var analyzeButton = document.getElementById("analyze");
   var cancelButton = document.getElementById("cancel");
   var applyButton = document.getElementById("apply");
+  var executeButton = document.getElementById("execute");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
@@ -110,6 +111,8 @@
 
   function renderResults(analysis, outputDirectory) {
     results.textContent = "";
+    executeButton.disabled = !analysis.shots.length || document.getElementById("task").value !== "static-mask" ||
+      !analysis.shots.every(function (shot) { return shot.target && shot.target.kind === "box"; });
     analysis.shots.forEach(function (shot) {
       if (!shot.selected) return;
       var item = document.createElement("div");
@@ -266,6 +269,35 @@
     }
   }
 
+  function executeStaticMasks() {
+    if (!currentAnalysis) return;
+    try {
+      var taskType = document.getElementById("task").value;
+      var mode = document.getElementById("mode").value;
+      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode);
+      var encodedPlan = encodeURIComponent(JSON.stringify(plan));
+      executeButton.disabled = true;
+      status.textContent = "Executing static masks in After Effects…";
+      evalHost("AE_executeStaticMasks(\"" + encodedPlan + "\")", function (raw) {
+        try {
+          var result = JSON.parse(raw);
+          status.textContent = result.ok
+            ? "Created " + result.created + " static mask(s) on " + result.layerName +
+              (result.replaced ? "; replaced " + result.replaced + " managed mask(s)" : "") +
+              (result.skipped ? "; skipped " + result.skipped + " out-of-range shot(s)" : "") +
+              (result.preservedUserMasks ? "; preserved " + result.preservedUserMasks + " user mask(s)" : "") + "."
+            : result.error;
+        } catch (error) {
+          status.textContent = raw;
+        }
+        renderResults(currentAnalysis, currentOutputDirectory);
+      });
+    } catch (error) {
+      status.textContent = "Execution failed: " + error.message;
+      renderResults(currentAnalysis, currentOutputDirectory);
+    }
+  }
+
   function startLocalAnalysis(footage) {
     if (typeof require !== "function" || typeof process === "undefined") {
       throw new Error("CEP Node.js integration is unavailable. Check the extension manifest.");
@@ -276,6 +308,7 @@
 
     results.textContent = "";
     applyButton.disabled = true;
+    executeButton.disabled = true;
     exportButton.disabled = true;
     activeAnalysis = AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
       onProgress: function (event) { status.textContent = stageMessage(event); },
@@ -332,6 +365,7 @@
 
   exportButton.addEventListener("click", exportScenePlan);
   applyButton.addEventListener("click", applyScenePlan);
+  executeButton.addEventListener("click", executeStaticMasks);
   document.getElementById("task").addEventListener("change", function () {
     if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);
   });

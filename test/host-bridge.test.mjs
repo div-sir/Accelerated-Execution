@@ -20,14 +20,67 @@ class MarkerProperty {
   }
 }
 
-function createHost({ sourcePath = "/Footage/source.mp4", keys = [] } = {}) {
+class KeyframedProperty {
+  constructor() { this.keys = []; }
+  get numKeys() { return this.keys.length; }
+  setValue(value) { this.value = value; }
+  setValueAtTime(time, value) {
+    const existing = this.keys.find((key) => key.time === time);
+    if (existing) existing.value = value;
+    else this.keys.push({ time, value, interpolation: null });
+    this.keys.sort((left, right) => left.time - right.time);
+  }
+  setInterpolationTypeAtKey(index, incoming, outgoing) {
+    this.keys[index - 1].interpolation = [incoming, outgoing];
+  }
+}
+
+class MaskParade {
+  constructor(names = []) {
+    this.items = names.map((name) => this.createMask(name));
+  }
+  get numProperties() { return this.items.length; }
+  property(index) { return this.items[index - 1]; }
+  canAddProperty(name) { return name === "ADBE Mask Atom"; }
+  createMask(name = "Mask") {
+    const parade = this;
+    const shape = new KeyframedProperty();
+    const opacity = new KeyframedProperty();
+    return {
+      name,
+      shape,
+      opacity,
+      property(propertyName) {
+        if (propertyName === "ADBE Mask Shape") return shape;
+        if (propertyName === "ADBE Mask Opacity") return opacity;
+        return null;
+      },
+      remove() {
+        const index = parade.items.indexOf(this);
+        if (index >= 0) parade.items.splice(index, 1);
+      },
+    };
+  }
+  addProperty(name) {
+    assert.equal(name, "ADBE Mask Atom");
+    const mask = this.createMask();
+    this.items.push(mask);
+    return mask;
+  }
+}
+
+function createHost({ sourcePath = "/Footage/source.mp4", keys = [], maskNames = [] } = {}) {
   function CompItem() {}
   function FootageItem() {}
   function MarkerValue(comment) { this.comment = comment; }
+  function Shape() {}
 
   const markers = new MarkerProperty(keys);
+  const masks = new MaskParade(maskNames);
   const footage = new FootageItem();
   footage.file = { fsName: sourcePath };
+  footage.width = 1920;
+  footage.height = 1080;
   const layer = {
     name: "Footage Layer",
     source: footage,
@@ -36,7 +89,11 @@ function createHost({ sourcePath = "/Footage/source.mp4", keys = [] } = {}) {
     stretch: 50,
     inPoint: 2,
     outPoint: 8,
-    property: (name) => name === "ADBE Marker" || name === "Marker" ? markers : null,
+    property(name) {
+      if (name === "ADBE Marker" || name === "Marker") return markers;
+      if (name === "ADBE Mask Parade" || name === "Masks") return masks;
+      return null;
+    },
   };
   const comp = new CompItem();
   comp.name = "Main Comp";
@@ -52,10 +109,13 @@ function createHost({ sourcePath = "/Footage/source.mp4", keys = [] } = {}) {
     CompItem,
     FootageItem,
     MarkerValue,
+    Shape,
+    MaskMode: { ADD: "add" },
+    KeyframeInterpolationType: { HOLD: "hold" },
     $: { os: "Macintosh" },
   };
   vm.runInNewContext(hostSource, context);
-  return { context, layer, markers, undo };
+  return { context, layer, markers, masks, undo };
 }
 
 function plan(sourcePath = "/Footage/source.mp4") {
@@ -88,6 +148,37 @@ function plan(sourcePath = "/Footage/source.mp4") {
 
 function apply(host, value) {
   return JSON.parse(host.context.AE_applyScenePlan(encodeURIComponent(JSON.stringify(value))));
+}
+
+function staticMaskPlan() {
+  return {
+    version: "0.1",
+    source: { path: "/Footage/source.mp4" },
+    media: { width: 1920, height: 1080, duration: 24 },
+    shots: [{
+      id: "shot-001",
+      startTime: 0,
+      endTime: 2,
+      tasks: [{
+        type: "static-mask",
+        engine: "ae-native",
+        action: "static-mask",
+        anchorTime: 1,
+        target: {
+          kind: "box",
+          coordinateSpace: "normalized-source",
+          x: 0.1,
+          y: 0.2,
+          width: 0.5,
+          height: 0.4,
+        },
+      }],
+    }],
+  };
+}
+
+function executeStaticMasks(host, value) {
+  return JSON.parse(host.context.AE_executeStaticMasks(encodeURIComponent(JSON.stringify(value))));
 }
 
 test("AE_applyScenePlan replaces managed markers and preserves user markers", () => {
@@ -132,5 +223,105 @@ test("AE_applyScenePlan refuses to overwrite a user marker", () => {
   assert.match(result.error, /user marker already occupies/);
   assert.equal(host.markers.numKeys, 1);
   assert.equal(host.markers.keyValue(1).comment, "Keep me");
+  assert.deepEqual(host.undo, []);
+});
+
+test("AE_executeStaticMasks replaces managed masks and preserves user masks", () => {
+  const host = createHost({
+    maskNames: ["Accelerated Execution | old | static-mask", "User Mask"],
+  });
+  const result = executeStaticMasks(host, staticMaskPlan());
+  assert.deepEqual(result, {
+    ok: true,
+    compName: "Main Comp",
+    layerName: "Footage Layer",
+    created: 1,
+    replaced: 1,
+    skipped: 0,
+    preservedUserMasks: 1,
+  });
+  assert.deepEqual(host.masks.items.map((mask) => mask.name), [
+    "User Mask",
+    "Accelerated Execution | shot-001 | static-mask",
+  ]);
+  const created = host.masks.items[1];
+  assert.equal(created.maskMode, "add");
+  const vertices = JSON.parse(JSON.stringify(created.shape.value.vertices)).map((vertex) => {
+    return vertex.map((coordinate) => Number(coordinate.toFixed(6)));
+  });
+  assert.deepEqual(vertices, [
+    [192, 216],
+    [1152, 216],
+    [1152, 648],
+    [192, 648],
+  ]);
+  assert.deepEqual(created.opacity.keys, [
+    { time: 2, value: 100, interpolation: ["hold", "hold"] },
+    { time: 3, value: 0, interpolation: ["hold", "hold"] },
+  ]);
+  assert.deepEqual(host.undo, [
+    ["begin", "Execute Accelerated Execution Static Masks"],
+    ["end"],
+  ]);
+});
+
+test("AE_executeStaticMasks rejects unsupported tasks before mutating masks", () => {
+  const host = createHost({ maskNames: ["Accelerated Execution | keep-until-valid"] });
+  const invalidPlan = staticMaskPlan();
+  invalidPlan.shots[0].tasks[0].action = "roto-brush";
+  const result = executeStaticMasks(host, invalidPlan);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /only supports ae-native static-mask/);
+  assert.equal(host.masks.numProperties, 1);
+  assert.deepEqual(host.undo, []);
+});
+
+test("AE_executeStaticMasks skips shots outside the selected layer range", () => {
+  const host = createHost();
+  const value = staticMaskPlan();
+  value.shots.push({
+    id: "shot-002",
+    startTime: 20,
+    endTime: 22,
+    tasks: [JSON.parse(JSON.stringify(value.shots[0].tasks[0]))],
+  });
+  const result = executeStaticMasks(host, value);
+  assert.equal(result.ok, true);
+  assert.equal(result.created, 1);
+  assert.equal(result.skipped, 1);
+});
+
+test("AE_executeStaticMasks gates a later shot with hold opacity keys", () => {
+  const host = createHost();
+  const value = staticMaskPlan();
+  value.shots[0].startTime = 2;
+  value.shots[0].endTime = 4;
+  const result = executeStaticMasks(host, value);
+  assert.equal(result.ok, true);
+  assert.deepEqual(host.masks.items[0].opacity.keys, [
+    { time: 2, value: 0, interpolation: ["hold", "hold"] },
+    { time: 3, value: 100, interpolation: ["hold", "hold"] },
+    { time: 4, value: 0, interpolation: ["hold", "hold"] },
+  ]);
+});
+
+test("AE_executeStaticMasks rejects source dimension drift before mutation", () => {
+  const host = createHost({ maskNames: ["Accelerated Execution | existing"] });
+  const value = staticMaskPlan();
+  value.media.width = 1280;
+  const result = executeStaticMasks(host, value);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /dimensions differ/);
+  assert.equal(host.masks.numProperties, 1);
+  assert.deepEqual(host.undo, []);
+});
+
+test("AE_executeStaticMasks rejects a locked layer before mutation", () => {
+  const host = createHost();
+  host.layer.locked = true;
+  const result = executeStaticMasks(host, staticMaskPlan());
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Unlock the selected footage layer/);
+  assert.equal(host.masks.numProperties, 0);
   assert.deepEqual(host.undo, []);
 });

@@ -55,6 +55,11 @@ Object Matte with Roto Brush as the native fallback. Efficient and maximum modes
 segmentation after native quality failure; cloud vision is only represented in maximum mode. These
 are ordered execution contracts—the local and vision segmentation providers are not implemented yet.
 
+For a fully local executable path, select **Static mask**, draw a box target for every shot, and use
+**Execute static masks in AE**. The host creates rectangular masks in source-pixel coordinates and
+uses hold opacity keys to limit each mask to its shot. Re-running replaces only managed masks,
+preserves user-authored masks, and can be reverted with one After Effects undo operation.
+
 Validate a scene plan before handing it to the After Effects host bridge:
 
 ```bash

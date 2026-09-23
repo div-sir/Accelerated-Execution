@@ -97,3 +97,12 @@ an explicit condition: `unavailable`, `quality-failed`, or `semantic-ambiguity`.
 AE Object Matte and fall back to Roto Brush; efficient and maximum modes may then use local SAM
 segmentation, while only maximum mode may add a vision-provider fallback. Native mode never emits
 AI fallbacks. A route describes intended execution and does not imply that its provider has run.
+
+## Native static-mask execution
+
+The first executable action is `ae-native / static-mask`. Before mutation, the host verifies the
+selected footage path, source dimensions, task action, box bounds, and shot times. Each normalized
+box becomes a rectangular mask in layer source coordinates. Hold-interpolated Mask Opacity keys
+activate it only over the visible portion of its shot. Re-execution removes only masks with the
+Accelerated Execution prefix, preserves user masks, and runs in one AE undo group. Shots entirely
+outside a trimmed layer are reported as skipped; time-remapped layers remain unsupported.

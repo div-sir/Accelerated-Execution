@@ -27,6 +27,7 @@
 - [x] Select a candidate frame from local scores.
 - [x] Let the user click or box a target.
 - [x] Define task actions and ordered native/local/vision fallback routes.
+- [x] Execute box targets as time-gated native AE static masks.
 - [ ] Route people and objects to AE native matte tools when possible.
 - [ ] Add local SAM-family fallback provider.
 - [ ] Add matte quality checks.

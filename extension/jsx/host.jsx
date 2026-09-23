@@ -229,3 +229,160 @@ function AE_applyScenePlan(encodedScenePlan) {
     return AE_json({ ok: false, error: error.toString() });
   }
 }
+
+function AE_executeStaticMasks(encodedScenePlan) {
+  var undoStarted = false;
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before executing static masks." });
+    }
+    if (!item.selectedLayers.length) {
+      return AE_json({ ok: false, error: "Select the analyzed footage layer in the active composition." });
+    }
+    var layer = item.selectedLayers[0];
+    if (!layer.source || !(layer.source instanceof FootageItem) || !layer.source.file) {
+      return AE_json({ ok: false, error: "The selected layer is not local footage." });
+    }
+    if (layer.timeRemapEnabled) {
+      return AE_json({ ok: false, error: "Static-mask execution does not yet support time-remapped layers." });
+    }
+    if (layer.locked) {
+      return AE_json({ ok: false, error: "Unlock the selected footage layer before executing static masks." });
+    }
+    if (!isFinite(Number(layer.stretch)) || Number(layer.stretch) === 0) {
+      return AE_json({ ok: false, error: "The selected layer has an invalid stretch value." });
+    }
+
+    var plan = JSON.parse(decodeURIComponent(String(encodedScenePlan)));
+    if (!plan || plan.version !== "0.1" || !plan.source || !plan.source.path || !plan.media) {
+      return AE_json({ ok: false, error: "The scene plan is missing its version, source, or media metadata." });
+    }
+    if (AE_normalizePath(layer.source.file.fsName) !== AE_normalizePath(plan.source.path)) {
+      return AE_json({ ok: false, error: "The selected layer is not the footage used by this scene plan." });
+    }
+    if (Number(plan.media.width) !== Number(layer.source.width) ||
+        Number(plan.media.height) !== Number(layer.source.height)) {
+      return AE_json({ ok: false, error: "The selected footage dimensions differ from the analyzed source." });
+    }
+    var mediaDuration = Number(plan.media.duration);
+    if (!isFinite(mediaDuration) || mediaDuration <= 0) {
+      return AE_json({ ok: false, error: "The scene plan has an invalid media duration." });
+    }
+    if (!plan.shots || typeof plan.shots.length !== "number" || !plan.shots.length) {
+      return AE_json({ ok: false, error: "The scene plan has no shots to execute." });
+    }
+
+    var planned = [];
+    var skipped = 0;
+    var tolerance = Math.max(0.000001, item.frameDuration / 4);
+    var shotIndex;
+    for (shotIndex = 0; shotIndex < plan.shots.length; shotIndex += 1) {
+      var shot = plan.shots[shotIndex];
+      if (!shot || !shot.tasks || shot.tasks.length !== 1) {
+        return AE_json({ ok: false, error: "Each shot must contain exactly one static-mask task." });
+      }
+      var task = shot.tasks[0];
+      if (task.type !== "static-mask" || task.engine !== "ae-native" || task.action !== "static-mask") {
+        return AE_json({ ok: false, error: "This executor only supports ae-native static-mask tasks." });
+      }
+      var target = task.target;
+      if (!target || target.kind !== "box" || target.coordinateSpace !== "normalized-source") {
+        return AE_json({ ok: false, error: "Static-mask tasks require a normalized source box." });
+      }
+      var x = Number(target.x);
+      var y = Number(target.y);
+      var width = Number(target.width);
+      var height = Number(target.height);
+      if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height) ||
+          x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1.000001 || y + height > 1.000001) {
+        return AE_json({ ok: false, error: "Static-mask target bounds are invalid." });
+      }
+      var sourceStart = Number(shot.startTime);
+      var sourceEnd = Number(shot.endTime);
+      if (!isFinite(sourceStart) || !isFinite(sourceEnd) || sourceStart < 0 ||
+          sourceEnd <= sourceStart || sourceEnd > mediaDuration + tolerance) {
+        return AE_json({ ok: false, error: "Shot " + (shotIndex + 1) + " has invalid time bounds." });
+      }
+      var mappedStart = layer.startTime + sourceStart * (layer.stretch / 100);
+      var mappedEnd = layer.startTime + sourceEnd * (layer.stretch / 100);
+      var visibleStart = Math.max(layer.inPoint, Math.min(mappedStart, mappedEnd));
+      var visibleEnd = Math.min(layer.outPoint, Math.max(mappedStart, mappedEnd));
+      if (visibleEnd - visibleStart <= tolerance) {
+        skipped += 1;
+        continue;
+      }
+      var right = Math.min(1, x + width);
+      var bottom = Math.min(1, y + height);
+      planned.push({
+        shotId: String(shot.id || "shot-" + (shotIndex + 1)),
+        startTime: visibleStart,
+        endTime: visibleEnd,
+        vertices: [
+          [x * layer.source.width, y * layer.source.height],
+          [right * layer.source.width, y * layer.source.height],
+          [right * layer.source.width, bottom * layer.source.height],
+          [x * layer.source.width, bottom * layer.source.height]
+        ]
+      });
+    }
+    if (!planned.length) {
+      return AE_json({ ok: false, error: "No static-mask shot overlaps the selected layer's visible range." });
+    }
+
+    var masks = layer.property("ADBE Mask Parade") || layer.property("Masks");
+    if (!masks || typeof masks.canAddProperty !== "function" || !masks.canAddProperty("ADBE Mask Atom")) {
+      return AE_json({ ok: false, error: "The selected layer cannot accept masks." });
+    }
+    var maskPrefix = "Accelerated Execution | ";
+    var managed = [];
+    var userMaskCount = 0;
+    var maskIndex;
+    for (maskIndex = 1; maskIndex <= masks.numProperties; maskIndex += 1) {
+      var existingMask = masks.property(maskIndex);
+      if (existingMask && String(existingMask.name).indexOf(maskPrefix) === 0) managed.push(existingMask);
+      else userMaskCount += 1;
+    }
+
+    app.beginUndoGroup("Execute Accelerated Execution Static Masks");
+    undoStarted = true;
+    for (maskIndex = managed.length - 1; maskIndex >= 0; maskIndex -= 1) managed[maskIndex].remove();
+    for (shotIndex = 0; shotIndex < planned.length; shotIndex += 1) {
+      var entry = planned[shotIndex];
+      var mask = masks.addProperty("ADBE Mask Atom");
+      mask.name = maskPrefix + entry.shotId + " | static-mask";
+      mask.maskMode = MaskMode.ADD;
+      var shape = new Shape();
+      shape.vertices = entry.vertices;
+      shape.inTangents = [[0, 0], [0, 0], [0, 0], [0, 0]];
+      shape.outTangents = [[0, 0], [0, 0], [0, 0], [0, 0]];
+      shape.closed = true;
+      mask.property("ADBE Mask Shape").setValue(shape);
+
+      var opacity = mask.property("ADBE Mask Opacity");
+      if (entry.startTime - layer.inPoint > tolerance) opacity.setValueAtTime(layer.inPoint, 0);
+      opacity.setValueAtTime(entry.startTime, 100);
+      opacity.setValueAtTime(entry.endTime, 0);
+      var opacityKey;
+      for (opacityKey = 1; opacityKey <= opacity.numKeys; opacityKey += 1) {
+        opacity.setInterpolationTypeAtKey(opacityKey, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+      }
+    }
+    app.endUndoGroup();
+    undoStarted = false;
+    return AE_json({
+      ok: true,
+      compName: item.name,
+      layerName: layer.name,
+      created: planned.length,
+      replaced: managed.length,
+      skipped: skipped,
+      preservedUserMasks: userMaskCount
+    });
+  } catch (error) {
+    if (undoStarted) {
+      try { app.endUndoGroup(); } catch (undoError) {}
+    }
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}
