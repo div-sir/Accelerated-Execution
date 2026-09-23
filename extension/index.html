@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Accelerated Execution</title>
+  <style>
+    body { margin: 0; padding: 16px; font: 13px system-ui, sans-serif; background: #232323; color: #eee; }
+    h1 { font-size: 16px; margin: 0 0 14px; }
+    .card { background: #2d2d2d; border: 1px solid #404040; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    button, select { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; }
+    .muted { color: #aaa; font-size: 12px; }
+    #status { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Accelerated Execution</h1>
+  <div class="card">
+    <strong>Execution mode</strong>
+    <select id="mode">
+      <option value="efficient">Efficient — local first</option>
+      <option value="native">AE native only</option>
+      <option value="maximum">Maximum assistance</option>
+    </select>
+  </div>
+  <div class="card">
+    <strong>Active composition</strong>
+    <div id="comp" class="muted">Not checked.</div>
+    <button id="inspect">Inspect AE</button>
+  </div>
+  <div class="card">
+    <strong>MVP</strong>
+    <button id="analyze">Analyze selected footage</button>
+    <div id="status" class="muted">Ready.</div>
+  </div>
+  <script src="./js/main.js"></script>
+</body>
+</html>
