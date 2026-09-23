@@ -33,9 +33,18 @@ forced onto an inaccurate average-frame-rate timeline. CFR inputs also receive s
 No footage leaves the machine.
 
 In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
-**Analyze selected footage**. The panel launches the same local CLI, reports progress, and shows
-three ranked anchor candidates for every detected shot. Choose an anchor, use **Go to anchor in
-After Effects** to move the active composition's playhead, then export a schema-valid
+**Prepare selected footage**. This is the primary workflow. The panel detects shots, ranks candidate
+frames, automatically keeps the best preparation frame for each shot, writes `preparation.json`,
+and does not apply effects to the composition. Candidate review remains available, but it is optional.
+
+The preparation manifest is intentionally execution-neutral. It records ready frames and, when a
+local detector/segmenter has already produced them, ready masks. The normal workflow stops there.
+Execution controls live under an optional section for users who want to apply markers or masks.
+
+The panel launches the same local CLI, reports progress, and shows
+three ranked anchor candidates for every detected shot. Choose an anchor only when you want to
+override the automatic choice. Use **Go to anchor in After Effects** to move the active
+composition's playhead, then export a schema-valid
 `scene-plan.json` containing source identity, media timebase, and timestamp anchors. Navigation
 refuses to control a selected layer whose source path differs from the analyzed footage. A running
 analysis can be cancelled from the panel and is stopped automatically after 30 minutes. Cancelled,
