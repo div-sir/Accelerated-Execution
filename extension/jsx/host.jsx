@@ -25,6 +25,7 @@ function AE_getHostState() {
 
 function AE_footageResult(item) {
   if (!item || !(item instanceof FootageItem) || !item.file) return null;
+  if (item.mainSource && item.mainSource.isStill) return null;
 
   return {
     ok: true,
@@ -60,7 +61,13 @@ function AE_getSelectedFootage() {
   }
 }
 
-function AE_setCurrentSourceFrame(frame, sourceFrameRate) {
+function AE_normalizePath(value) {
+  var normalized = String(value).replace(/\\/g, "/");
+  if ($.os.toLowerCase().indexOf("windows") !== -1) normalized = normalized.toLowerCase();
+  return normalized;
+}
+
+function AE_setCurrentSourceTime(sourceTimeValue, encodedSourcePath) {
   try {
     var item = app.project.activeItem;
     if (!item || !(item instanceof CompItem)) {
@@ -76,20 +83,25 @@ function AE_setCurrentSourceFrame(frame, sourceFrameRate) {
     if (layer.timeRemapEnabled) {
       return AE_json({ ok: false, error: "Anchor navigation does not yet support time-remapped layers." });
     }
-    var targetFrame = Number(frame);
-    var footageFrameRate = Number(sourceFrameRate);
-    if (!isFinite(targetFrame) || targetFrame < 0 || !isFinite(footageFrameRate) || footageFrameRate <= 0) {
-      return AE_json({ ok: false, error: "Anchor frame is invalid." });
+    if (!layer.source.file) {
+      return AE_json({ ok: false, error: "The selected footage has no local file." });
     }
-    var sourceTime = targetFrame / footageFrameRate;
+    var expectedPath = decodeURIComponent(String(encodedSourcePath));
+    if (AE_normalizePath(layer.source.file.fsName) !== AE_normalizePath(expectedPath)) {
+      return AE_json({ ok: false, error: "The selected layer is not the footage used for this analysis." });
+    }
+    var sourceTime = Number(sourceTimeValue);
+    if (!isFinite(sourceTime) || sourceTime < 0) {
+      return AE_json({ ok: false, error: "Anchor time is invalid." });
+    }
     var compTime = layer.startTime + sourceTime * (layer.stretch / 100);
-    if (compTime < layer.inPoint || compTime > layer.outPoint) {
+    if (compTime < layer.inPoint || compTime >= layer.outPoint) {
       return AE_json({ ok: false, error: "The anchor is outside the selected layer's trimmed range." });
     }
     item.time = compTime;
     return AE_json({
       ok: true,
-      sourceFrame: Math.round(targetFrame),
+      sourceTime: sourceTime,
       compFrame: Math.round(item.time * item.frameRate),
       time: item.time
     });

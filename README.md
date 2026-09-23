@@ -26,15 +26,18 @@ npm run proxy -- /path/to/footage.mp4 --output ./proxy.mp4 --height 720
 npm run analyze -- /path/to/footage.mp4 --output ./analysis
 ```
 
-The analyzer detects scene cuts, samples three frames per shot, calculates deterministic local
+The analyzer detects scene cuts, samples three timestamps per shot, calculates deterministic local
 sharpness, stability, visibility, and trackability metrics, ranks the candidates, and writes
-`analysis.json` plus a JPEG preview for each selected frame. No footage leaves the machine.
+`analysis.json` plus JPEG previews. Timestamps are canonical so variable-frame-rate footage is not
+forced onto an inaccurate average-frame-rate timeline. CFR inputs also receive source-frame labels.
+No footage leaves the machine.
 
 In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
 **Analyze selected footage**. The panel launches the same local CLI, reports progress, and shows
 three ranked anchor candidates for every detected shot. Choose an anchor, use **Go to anchor in
 After Effects** to move the active composition's playhead, then export a schema-valid
-`scene-plan.json` for the selected task and execution mode. During development, keep the repository layout
+`scene-plan.json` containing source identity, media timebase, and timestamp anchors. Navigation
+refuses to control a selected layer whose source path differs from the analyzed footage. During development, keep the repository layout
 intact so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
 `AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
 

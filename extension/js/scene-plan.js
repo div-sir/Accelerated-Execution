@@ -19,35 +19,51 @@
   }
 
   function buildScenePlan(analysis, taskType, mode) {
-    if (!analysis || !analysis.media || !Array.isArray(analysis.shots)) {
+    if (!analysis || !analysis.source || !analysis.media || !Array.isArray(analysis.shots)) {
       throw new Error("Analysis result is incomplete.");
     }
-    var frameRate = Number(analysis.media.frameRate);
-    if (!(frameRate > 0)) throw new Error("Analysis frame rate is invalid.");
     var engine = engineFor(taskType, mode);
 
     return {
       version: "0.1",
+      source: analysis.source,
+      media: {
+        width: analysis.media.width,
+        height: analysis.media.height,
+        duration: analysis.media.duration,
+        frameRateMode: analysis.media.frameRateMode,
+        averageFrameRate: analysis.media.averageFrameRate,
+        nominalFrameRate: analysis.media.nominalFrameRate,
+        timeBase: analysis.media.timeBase,
+        frameCount: analysis.media.frameCount
+      },
       shots: analysis.shots.map(function (shot, index) {
-        if (!shot.selected || !Number.isInteger(shot.selected.frame)) {
-          throw new Error("Shot " + (index + 1) + " has no selected anchor frame.");
+        if (!shot.selected || !(Number(shot.selected.timeSeconds) >= 0)) {
+          throw new Error("Shot " + (index + 1) + " has no selected anchor time.");
         }
-        var startFrame = Math.max(0, Math.round(Number(shot.start) * frameRate));
-        var endFrame = Math.max(startFrame, Math.ceil(Number(shot.end) * frameRate) - 1);
-        if (shot.selected.frame < startFrame || shot.selected.frame > endFrame) {
+        var startTime = Number(shot.startTime);
+        var endTime = Number(shot.endTime);
+        if (shot.selected.timeSeconds < startTime || shot.selected.timeSeconds >= endTime) {
           throw new Error("Selected anchor for shot " + (index + 1) + " falls outside the shot.");
         }
-        return {
-          id: shot.id || "shot-" + String(index + 1).padStart(3, "0"),
-          startFrame: startFrame,
-          endFrame: endFrame,
-          tasks: [{
-            type: taskType,
-            engine: engine,
-            anchorFrame: shot.selected.frame,
-            confidence: clamp01(shot.selected.score)
-          }]
+        var task = {
+          type: taskType,
+          engine: engine,
+          anchorTime: shot.selected.timeSeconds,
+          confidence: clamp01(shot.selected.score)
         };
+        if (Number.isInteger(shot.selected.sourceFrame)) task.anchorFrame = shot.selected.sourceFrame;
+        var result = {
+          id: shot.id || "shot-" + String(index + 1).padStart(3, "0"),
+          startTime: startTime,
+          endTime: endTime,
+          tasks: [task]
+        };
+        if (analysis.media.frameRateMode === "cfr" && analysis.media.averageFrameRate > 0) {
+          result.startFrame = Math.max(0, Math.round(startTime * analysis.media.averageFrameRate));
+          result.endFrame = Math.max(result.startFrame, Math.ceil(endTime * analysis.media.averageFrameRate) - 1);
+        }
+        return result;
       })
     };
   }

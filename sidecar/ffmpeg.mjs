@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { frameMetrics, rankCandidates } from "./keyframe-score.mjs";
@@ -41,20 +42,69 @@ export async function discoverFfmpeg({ ffmpeg = process.env.AE_FFMPEG_PATH || "f
   return result;
 }
 
+function parseRate(value) {
+  const [numerator, denominator] = String(value || "0/0").split("/").map(Number);
+  return denominator && Number.isFinite(numerator / denominator) ? numerator / denominator : 0;
+}
+
+export async function sourceIdentity(input) {
+  const realPath = await fs.realpath(input).catch(() => path.resolve(input));
+  const stat = await fs.stat(realPath);
+  if (!stat.isFile()) throw new Error("Input is not a regular file.");
+  const sampleSize = Math.min(stat.size, 1024 * 1024);
+  const first = Buffer.alloc(sampleSize);
+  const last = Buffer.alloc(sampleSize);
+  const handle = await fs.open(realPath, "r");
+  try {
+    await handle.read(first, 0, sampleSize, 0);
+    await handle.read(last, 0, sampleSize, Math.max(0, stat.size - sampleSize));
+  } finally {
+    await handle.close();
+  }
+  const hash = crypto.createHash("sha256");
+  hash.update("accelerated-execution-sampled-v1\0");
+  hash.update(String(stat.size));
+  hash.update("\0");
+  hash.update(first);
+  hash.update(last);
+  return {
+    path: realPath,
+    name: path.basename(realPath),
+    size: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    fingerprint: { algorithm: "sha256-sampled-v1", value: hash.digest("hex") },
+  };
+}
+
 export async function probeMedia(input, { ffprobe = process.env.AE_FFPROBE_PATH || "ffprobe" } = {}) {
   const { stdout } = await run(ffprobe, [
-    "-v", "error", "-select_streams", "v:0",
-    "-show_entries", "stream=width,height,avg_frame_rate,duration:format=duration",
+    "-v", "error", "-select_streams", "v:0", "-count_frames",
+    "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,time_base,duration,nb_frames,nb_read_frames:format=duration",
     "-of", "json", input,
   ]);
   const data = JSON.parse(stdout.toString("utf8"));
   const stream = data.streams && data.streams[0];
   if (!stream) throw new Error("No video stream found.");
-  const [numerator, denominator] = String(stream.avg_frame_rate || "0/1").split("/").map(Number);
   const duration = Number(stream.duration || data.format?.duration);
-  const frameRate = denominator ? numerator / denominator : 0;
-  if (!Number.isFinite(duration) || duration <= 0 || !frameRate) throw new Error("Video duration or frame rate is unavailable.");
-  return { width: stream.width, height: stream.height, duration, frameRate, frameCount: Math.round(duration * frameRate) };
+  const averageFrameRate = parseRate(stream.avg_frame_rate);
+  const nominalFrameRate = parseRate(stream.r_frame_rate);
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error("Video duration is unavailable.");
+  const comparableRates = averageFrameRate > 0 && nominalFrameRate > 0;
+  const tolerance = Math.max(0.001, averageFrameRate * 0.001);
+  const frameRateMode = comparableRates
+    ? (Math.abs(averageFrameRate - nominalFrameRate) <= tolerance ? "cfr" : "vfr")
+    : "unknown";
+  const countedFrames = Number(stream.nb_read_frames || stream.nb_frames);
+  return {
+    width: stream.width,
+    height: stream.height,
+    duration,
+    frameRateMode,
+    averageFrameRate: averageFrameRate || null,
+    nominalFrameRate: nominalFrameRate || null,
+    timeBase: stream.time_base || null,
+    frameCount: Number.isInteger(countedFrames) && countedFrames >= 0 ? countedFrames : null,
+  };
 }
 
 export async function detectSceneCuts(input, { threshold = 0.3, ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg" } = {}) {
@@ -120,7 +170,8 @@ async function extractGrayFrame(input, time, ffmpeg) {
 
 export async function analyzeCandidates(input, candidates, media, options = {}) {
   const ffmpeg = options.ffmpeg || process.env.AE_FFMPEG_PATH || "ffmpeg";
-  const offset = Math.min(0.1, 1 / media.frameRate * 2);
+  const referenceRate = media.averageFrameRate || media.nominalFrameRate || 24;
+  const offset = Math.min(0.1, 1 / referenceRate * 2);
   const analyzed = [];
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
@@ -129,7 +180,13 @@ export async function analyzeCandidates(input, candidates, media, options = {}) 
       extractGrayFrame(input, candidate.time, ffmpeg),
       extractGrayFrame(input, Math.min(candidate.shotEnd - 0.001, candidate.time + offset), ffmpeg),
     ]);
-    analyzed.push({ ...candidate, frame: Math.round(candidate.time * media.frameRate), metrics: frameMetrics(current, previous, next) });
+    const { time, ...candidateMetadata } = candidate;
+    analyzed.push({
+      ...candidateMetadata,
+      timeSeconds: candidate.time,
+      sourceFrame: media.frameRateMode === "cfr" ? Math.round(candidate.time * referenceRate) : null,
+      metrics: frameMetrics(current, previous, next),
+    });
     progress(options, "candidates", { completed: index + 1, total: candidates.length });
   }
   return analyzed;
@@ -141,9 +198,12 @@ export async function writePreviews(input, candidates, outputDirectory, options 
   await fs.mkdir(previewDirectory, { recursive: true });
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
-    const filename = `shot-${String(candidate.shotIndex + 1).padStart(3, "0")}-frame-${String(candidate.frame).padStart(6, "0")}.jpg`;
+    const position = candidate.sourceFrame === null
+      ? `time-${String(Math.round(candidate.timeSeconds * 1000)).padStart(9, "0")}`
+      : `frame-${String(candidate.sourceFrame).padStart(6, "0")}`;
+    const filename = `shot-${String(candidate.shotIndex + 1).padStart(3, "0")}-${position}.jpg`;
     await run(ffmpeg, [
-      "-v", "error", "-y", "-ss", candidate.time.toFixed(6), "-i", input,
+      "-v", "error", "-y", "-ss", candidate.timeSeconds.toFixed(6), "-i", input,
       "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", path.join(previewDirectory, filename),
     ]);
     candidate.preview = path.join("previews", filename);
@@ -153,7 +213,7 @@ export async function writePreviews(input, candidates, outputDirectory, options 
 
 export async function analyzeFootage(input, options = {}) {
   progress(options, "probe");
-  const media = await probeMedia(input, options);
+  const [source, media] = await Promise.all([sourceIdentity(input), probeMedia(input, options)]);
   progress(options, "cuts");
   const cuts = await detectSceneCuts(input, options);
   const candidateTimes = buildCandidateTimes(media.duration, cuts, options.candidatesPerShot || 3);
@@ -164,8 +224,8 @@ export async function analyzeFootage(input, options = {}) {
     const ranked = rankCandidates(analyzed.filter((candidate) => candidate.shotIndex === index));
     shots.push({
       id: `shot-${String(index + 1).padStart(3, "0")}`,
-      start: index === 0 ? 0 : cuts[index - 1],
-      end: index < cuts.length ? cuts[index] : media.duration,
+      startTime: index === 0 ? 0 : cuts[index - 1],
+      endTime: index < cuts.length ? cuts[index] : media.duration,
       candidates: ranked,
       selected: ranked[0] || null,
     });
@@ -176,5 +236,5 @@ export async function analyzeFootage(input, options = {}) {
     await writePreviews(input, previewCandidates, options.outputDirectory, options);
   }
   progress(options, "complete", { shots: shots.length });
-  return { version: "0.1", source: path.resolve(input), media, settings: { sceneThreshold: options.threshold || 0.3 }, cuts, shots };
+  return { version: "0.1", source, media, settings: { sceneThreshold: options.threshold || 0.3 }, cuts, shots };
 }

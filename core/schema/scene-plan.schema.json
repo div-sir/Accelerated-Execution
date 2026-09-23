@@ -4,17 +4,54 @@
   "title": "Accelerated Execution Scene Plan",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "shots"],
+  "required": ["version", "source", "media", "shots"],
   "properties": {
     "version": { "const": "0.1" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "name", "size", "modifiedAt", "fingerprint"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "size": { "type": "integer", "minimum": 0 },
+        "modifiedAt": { "type": "string", "format": "date-time" },
+        "fingerprint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "value"],
+          "properties": {
+            "algorithm": { "const": "sha256-sampled-v1" },
+            "value": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "duration", "frameRateMode"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "frameRateMode": { "enum": ["cfr", "vfr", "unknown"] },
+        "averageFrameRate": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "nominalFrameRate": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "timeBase": { "type": ["string", "null"] },
+        "frameCount": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
     "shots": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "startFrame", "endFrame", "tasks"],
+        "required": ["id", "startTime", "endTime", "tasks"],
         "properties": {
           "id": { "type": "string" },
+          "startTime": { "type": "number", "minimum": 0 },
+          "endTime": { "type": "number", "minimum": 0 },
           "startFrame": { "type": "integer", "minimum": 0 },
           "endFrame": { "type": "integer", "minimum": 0 },
           "tasks": {
@@ -22,10 +59,11 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type", "engine"],
+              "required": ["type", "engine", "anchorTime"],
               "properties": {
                 "type": { "enum": ["roto", "planar-track", "point-track", "camera-track", "static-mask"] },
                 "engine": { "enum": ["ae-native", "mocha", "local-ai", "vision"] },
+                "anchorTime": { "type": "number", "minimum": 0 },
                 "anchorFrame": { "type": "integer", "minimum": 0 },
                 "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
               }

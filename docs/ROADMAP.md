@@ -17,6 +17,9 @@
 - [x] Let users choose an anchor candidate per shot.
 - [x] Export selected anchors as a scene plan.
 - [x] Move the active AE composition to an anchor frame.
+- [x] Use timestamp-first anchors for CFR and VFR footage.
+- [x] Bind scene plans and AE navigation to source identity.
+- [x] Run real FFmpeg CFR/VFR fixtures in CI.
 
 ## v0.2 - Smart Mask
 

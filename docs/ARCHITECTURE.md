@@ -37,6 +37,11 @@ A keyframe is task-specific. Do not use one global keyframe for a shot.
 
 The local analyzer scores candidate frames using sharpness, motion, visibility, occlusion, and trackability. Vision MAY choose between a small candidate set. AE MUST validate the result by executing the track. Failed spans are re-initialized from a new anchor.
 
+Timestamps are canonical throughout analysis and scene plans. Frame numbers MAY be included for
+confirmed constant-frame-rate footage, but MUST NOT be synthesized from an average frame rate for
+variable-frame-rate media. Every scene plan identifies its source file and media timebase so the
+host bridge can refuse to apply an anchor to unrelated footage.
+
 ## AI budget policy
 
 1. Use deterministic local analysis first.

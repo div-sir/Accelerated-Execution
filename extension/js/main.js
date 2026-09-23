@@ -45,7 +45,7 @@
       var title = document.createElement("strong");
       title.textContent = shot.id;
       var detail = document.createElement("span");
-      detail.textContent = "anchor " + shot.selected.frame;
+      detail.textContent = "anchor " + shot.selected.timeSeconds.toFixed(3) + " s";
       header.appendChild(title);
       header.appendChild(detail);
       item.appendChild(header);
@@ -55,16 +55,18 @@
       shot.candidates.forEach(function (candidate) {
         var button = document.createElement("button");
         button.type = "button";
-        button.className = "candidate" + (candidate.frame === shot.selected.frame ? " selected" : "");
-        button.setAttribute("aria-label", "Select frame " + candidate.frame + " for " + shot.id);
+        button.className = "candidate" + (candidate.timeSeconds === shot.selected.timeSeconds ? " selected" : "");
+        button.setAttribute("aria-label", "Select " + candidate.timeSeconds.toFixed(3) + " seconds for " + shot.id);
         var image = document.createElement("img");
-        image.alt = "Frame " + candidate.frame;
+        image.alt = "Candidate at " + candidate.timeSeconds.toFixed(3) + " seconds";
         image.src = AESidecar.fileUrl(
           require("path").join(outputDirectory, candidate.preview),
           process.platform
         );
         var label = document.createElement("span");
-        label.textContent = "f" + candidate.frame + " · " + candidate.score.toFixed(3);
+        label.textContent = candidate.sourceFrame === null
+          ? candidate.timeSeconds.toFixed(3) + "s · " + candidate.score.toFixed(3)
+          : "f" + candidate.sourceFrame + " · " + candidate.score.toFixed(3);
         button.appendChild(image);
         button.appendChild(label);
         button.addEventListener("click", function () {
@@ -79,14 +81,14 @@
       locate.type = "button";
       locate.textContent = "Go to anchor in After Effects";
       locate.addEventListener("click", function () {
-        var frame = Number(shot.selected.frame);
-        var sourceFrameRate = Number(analysis.media.frameRate);
-        evalHost("AE_setCurrentSourceFrame(" + frame + "," + sourceFrameRate + ")", function (raw) {
+        var sourceTime = Number(shot.selected.timeSeconds);
+        var sourcePath = encodeURIComponent(analysis.source.path);
+        evalHost("AE_setCurrentSourceTime(" + sourceTime + ",\"" + sourcePath + "\")", function (raw) {
           try {
             var result = JSON.parse(raw);
             status.textContent = result.ok
               ? "After Effects moved to comp frame " + result.compFrame +
-                " for source frame " + result.sourceFrame + "."
+                " for source time " + result.sourceTime.toFixed(3) + " s."
               : result.error;
           } catch (error) {
             status.textContent = raw;

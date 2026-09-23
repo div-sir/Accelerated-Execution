@@ -6,14 +6,30 @@ import { validateScenePlan } from "../sidecar/scene-plan.mjs";
 const require = createRequire(import.meta.url);
 const { buildScenePlan, engineFor } = require("../extension/js/scene-plan.js");
 
-function analysis(selectedFrame = 24) {
+function analysis(selectedTime = 1, frameRateMode = "cfr") {
   return {
-    media: { frameRate: 24 },
+    source: {
+      path: "/footage/source.mp4",
+      name: "source.mp4",
+      size: 100,
+      modifiedAt: "2026-01-01T00:00:00.000Z",
+      fingerprint: { algorithm: "sha256-sampled-v1", value: "a".repeat(64) },
+    },
+    media: {
+      width: 1920,
+      height: 1080,
+      duration: 2,
+      frameRateMode,
+      averageFrameRate: 24,
+      nominalFrameRate: 24,
+      timeBase: "1/12288",
+      frameCount: 48,
+    },
     shots: [{
       id: "shot-001",
-      start: 0,
-      end: 2,
-      selected: { frame: selectedFrame, score: 0.82 },
+      startTime: 0,
+      endTime: 2,
+      selected: { timeSeconds: selectedTime, sourceFrame: frameRateMode === "cfr" ? 24 : null, score: 0.82 },
     }],
   };
 }
@@ -22,18 +38,32 @@ test("buildScenePlan produces a schema-valid plan", () => {
   const plan = buildScenePlan(analysis(), "point-track", "efficient");
   assert.deepEqual(plan, {
     version: "0.1",
+    source: analysis().source,
+    media: analysis().media,
     shots: [{
       id: "shot-001",
+      startTime: 0,
+      endTime: 2,
       startFrame: 0,
       endFrame: 47,
       tasks: [{
         type: "point-track",
         engine: "ae-native",
+        anchorTime: 1,
         anchorFrame: 24,
         confidence: 0.82,
       }],
     }],
   });
+  assert.equal(validateScenePlan(plan).valid, true);
+});
+
+test("buildScenePlan omits frame fields for VFR media", () => {
+  const plan = buildScenePlan(analysis(1, "vfr"), "point-track", "efficient");
+  assert.equal(plan.shots[0].startFrame, undefined);
+  assert.equal(plan.shots[0].endFrame, undefined);
+  assert.equal(plan.shots[0].tasks[0].anchorFrame, undefined);
+  assert.equal(plan.shots[0].tasks[0].anchorTime, 1);
   assert.equal(validateScenePlan(plan).valid, true);
 });
 
@@ -44,5 +74,5 @@ test("engineFor routes planar work to Mocha unless native-only mode is selected"
 });
 
 test("buildScenePlan rejects anchors outside their shot", () => {
-  assert.throws(() => buildScenePlan(analysis(60), "point-track", "efficient"), /outside the shot/);
+  assert.throws(() => buildScenePlan(analysis(2.1), "point-track", "efficient"), /outside the shot/);
 });
