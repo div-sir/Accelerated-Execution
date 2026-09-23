@@ -2,10 +2,12 @@
   var status = document.getElementById("status");
   var comp = document.getElementById("comp");
   var analyzeButton = document.getElementById("analyze");
+  var cancelButton = document.getElementById("cancel");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
   var currentOutputDirectory = null;
+  var activeAnalysis = null;
 
   function getCSInterface() {
     if (typeof CSInterface !== "undefined") return new CSInterface();
@@ -125,10 +127,12 @@
 
     results.textContent = "";
     exportButton.disabled = true;
-    AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
+    activeAnalysis = AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
       onProgress: function (event) { status.textContent = stageMessage(event); },
       onComplete: function (analysis, outputDirectory) {
+        activeAnalysis = null;
         analyzeButton.disabled = false;
+        cancelButton.disabled = true;
         exportButton.disabled = false;
         currentAnalysis = analysis;
         currentOutputDirectory = outputDirectory;
@@ -136,10 +140,13 @@
         renderResults(analysis, outputDirectory);
       },
       onError: function (error) {
+        activeAnalysis = null;
         analyzeButton.disabled = false;
+        cancelButton.disabled = true;
         status.textContent = "Analysis failed: " + error.message;
       }
     });
+    cancelButton.disabled = false;
   }
 
   document.getElementById("inspect").addEventListener("click", function () {
@@ -173,4 +180,10 @@
   });
 
   exportButton.addEventListener("click", exportScenePlan);
+  cancelButton.addEventListener("click", function () {
+    if (!activeAnalysis) return;
+    cancelButton.disabled = true;
+    status.textContent = "Cancelling analysis…";
+    activeAnalysis.cancel("Analysis cancelled by user.");
+  });
 })();

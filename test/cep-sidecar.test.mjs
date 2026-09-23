@@ -85,3 +85,83 @@ test("startAnalysis passes paths as spawn arguments and returns parsed output", 
   assert.deepEqual(progress, [{ stage: "cuts" }]);
   assert.deepEqual(analysis, { shots: [] });
 });
+
+function lifecycleHarness() {
+  const child = new EventEmitter();
+  child.pid = 4242;
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  let killedWith = null;
+  child.kill = (signal) => { killedWith = signal; };
+  const removed = [];
+  const dependencies = {
+    childProcess: { spawn: () => child },
+    fs: {
+      existsSync: () => true,
+      mkdtempSync: () => "/tmp/accelerated-execution-owned",
+      mkdirSync: () => {},
+      readFile: (_filename, _encoding, callback) => callback(null, '{"shots":[]}'),
+      rmSync: (directory, options) => removed.push({ directory, options }),
+    },
+    os: { tmpdir: () => "/tmp" },
+    path,
+    process: { env: { PATH: "/bin" }, platform: "darwin" },
+  };
+  return { child, dependencies, removed, killedWith: () => killedWith };
+}
+
+test("startAnalysis cancellation terminates the child and removes owned output", async () => {
+  const harness = lifecycleHarness();
+  let rejectAnalysis;
+  const failed = new Promise((resolve) => { rejectAnalysis = resolve; });
+  const controller = sidecar.startAnalysis({
+    source: "/Footage/source.mp4",
+    extensionPath: "/repo/extension",
+    dependencies: harness.dependencies,
+  }, { onError: rejectAnalysis });
+
+  assert.equal(controller.cancel("Stopped for test."), true);
+  assert.equal(controller.cancel("Second cancellation."), false);
+  const error = await failed;
+  assert.equal(error.message, "Stopped for test.");
+  assert.equal(harness.killedWith(), "SIGTERM");
+  assert.deepEqual(harness.removed, [{
+    directory: "/tmp/accelerated-execution-owned",
+    options: { recursive: true, force: true },
+  }]);
+});
+
+test("startAnalysis bounds captured stderr and cleans up after failure", async () => {
+  const harness = lifecycleHarness();
+  const failed = new Promise((resolve) => {
+    sidecar.startAnalysis({
+      source: "/Footage/source.mp4",
+      extensionPath: "/repo/extension",
+      dependencies: harness.dependencies,
+    }, { onError: resolve });
+  });
+
+  harness.child.stderr.emit("data", Buffer.from(`discarded-${"x".repeat(100_000)}`));
+  harness.child.emit("close", 1);
+  const error = await failed;
+  assert.equal(error.message.length, 64 * 1024);
+  assert.equal(error.message, "x".repeat(64 * 1024));
+  assert.equal(harness.removed.length, 1);
+});
+
+test("startAnalysis times out and terminates a stalled child", async () => {
+  const harness = lifecycleHarness();
+  const failed = new Promise((resolve) => {
+    sidecar.startAnalysis({
+      source: "/Footage/source.mp4",
+      extensionPath: "/repo/extension",
+      timeoutMs: 5,
+      dependencies: harness.dependencies,
+    }, { onError: resolve });
+  });
+
+  const error = await failed;
+  assert.equal(error.message, "Analysis timed out after 5 milliseconds.");
+  assert.equal(harness.killedWith(), "SIGTERM");
+  assert.equal(harness.removed.length, 1);
+});

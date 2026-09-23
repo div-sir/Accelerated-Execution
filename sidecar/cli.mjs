@@ -57,12 +57,23 @@ async function main() {
     const onProgress = args.includes("--events")
       ? (event) => console.log(`AE_EVENT ${JSON.stringify(event)}`)
       : undefined;
-    const analysis = await analyzeFootage(path.resolve(args[0]), {
-      outputDirectory,
-      threshold,
-      candidatesPerShot,
-      onProgress,
-    });
+    const controller = new AbortController();
+    const abort = () => controller.abort(new Error("Analysis interrupted."));
+    process.once("SIGINT", abort);
+    process.once("SIGTERM", abort);
+    let analysis;
+    try {
+      analysis = await analyzeFootage(path.resolve(args[0]), {
+        outputDirectory,
+        threshold,
+        candidatesPerShot,
+        onProgress,
+        signal: controller.signal,
+      });
+    } finally {
+      process.removeListener("SIGINT", abort);
+      process.removeListener("SIGTERM", abort);
+    }
     const output = path.join(outputDirectory, "analysis.json");
     await fs.writeFile(output, `${JSON.stringify(analysis, null, 2)}\n`);
     console.log(`Analyzed ${analysis.shots.length} shot(s).`);

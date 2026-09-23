@@ -6,6 +6,8 @@
   "use strict";
 
   var EVENT_PREFIX = "AE_EVENT ";
+  var MAX_CAPTURED_OUTPUT = 64 * 1024;
+  var DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 
   function parseEventLine(line) {
     if (line.indexOf(EVENT_PREFIX) !== 0) return null;
@@ -75,6 +77,19 @@
     return result;
   }
 
+  function removeOwnedOutput(fs, directory, owned) {
+    if (!owned || !directory) return;
+    try {
+      if (typeof fs.rmSync === "function") {
+        fs.rmSync(directory, { recursive: true, force: true });
+      } else if (typeof fs.rmdirSync === "function") {
+        fs.rmdirSync(directory, { recursive: true });
+      }
+    } catch (error) {
+      // Cleanup failure must not hide the analysis error.
+    }
+  }
+
   function startAnalysis(options, handlers) {
     handlers = handlers || {};
     var deps = options.dependencies || {
@@ -89,32 +104,75 @@
     var runtime = deps.process;
     var cliPath = resolveSidecar(fs, path, options.extensionPath);
 
-    var outputDirectory = options.outputDirectory || path.join(
-      deps.os.tmpdir(),
-      "accelerated-execution",
-      String(Date.now())
-    );
-    fs.mkdirSync(outputDirectory, { recursive: true });
+    var ownsOutput = !options.outputDirectory;
+    var outputDirectory = options.outputDirectory;
+    if (!outputDirectory) {
+      outputDirectory = fs.mkdtempSync(path.join(deps.os.tmpdir(), "accelerated-execution-"));
+    } else {
+      fs.mkdirSync(outputDirectory, { recursive: true });
+    }
 
     var nodeCommand = resolveNode(fs, runtime.env, runtime.platform);
     var env = extendedEnvironment(runtime.env, runtime.platform, { fs: fs });
     var args = [cliPath, "analyze", options.source, "--output", outputDirectory, "--events"];
-    var child = deps.childProcess.spawn(nodeCommand, args, {
-      env: env,
-      windowsHide: true
-    });
+    var child;
+    try {
+      child = deps.childProcess.spawn(nodeCommand, args, {
+        env: env,
+        windowsHide: true
+      });
+    } catch (error) {
+      removeOwnedOutput(fs, outputDirectory, ownsOutput);
+      throw error;
+    }
     var stdoutBuffer = "";
     var stderr = "";
     var settled = false;
+    var cleanupWhenSettled = false;
+    var timeoutMs = options.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : Number(options.timeoutMs);
+    var timeout = null;
 
-    function fail(error) {
+    function finish() {
+      if (timeout) clearTimeout(timeout);
+      timeout = null;
+    }
+
+    function fail(error, cleanup) {
       if (settled) return;
       settled = true;
+      cleanupWhenSettled = cleanupWhenSettled || cleanup;
+      finish();
+      if (cleanup) removeOwnedOutput(fs, outputDirectory, ownsOutput);
       if (handlers.onError) handlers.onError(error);
+    }
+
+    function cancel(reason) {
+      if (settled) return false;
+      try {
+        if (runtime.platform === "win32") {
+          deps.childProcess.spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
+        } else {
+          child.kill("SIGTERM");
+        }
+      } catch (error) {
+        // The child may already have exited; fail still settles the UI.
+      }
+      fail(new Error(reason || "Analysis cancelled."), true);
+      return true;
+    }
+
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      timeout = setTimeout(function () {
+        var duration = timeoutMs < 1000
+          ? timeoutMs + " milliseconds"
+          : Math.round(timeoutMs / 1000) + " seconds";
+        cancel("Analysis timed out after " + duration + ".");
+      }, timeoutMs);
     }
 
     child.stdout.on("data", function (chunk) {
       stdoutBuffer += chunk.toString();
+      if (stdoutBuffer.length > MAX_CAPTURED_OUTPUT) stdoutBuffer = stdoutBuffer.slice(-MAX_CAPTURED_OUTPUT);
       var lines = stdoutBuffer.split(/\r?\n/);
       stdoutBuffer = lines.pop();
       lines.forEach(function (line) {
@@ -122,25 +180,38 @@
         if (event && handlers.onProgress) handlers.onProgress(event);
       });
     });
-    child.stderr.on("data", function (chunk) { stderr += chunk.toString(); });
-    child.on("error", fail);
+    child.stderr.on("data", function (chunk) {
+      stderr = (stderr + chunk.toString()).slice(-MAX_CAPTURED_OUTPUT);
+    });
+    child.on("error", function (error) { fail(error, true); });
     child.on("close", function (code) {
-      if (settled) return;
+      if (settled) {
+        if (cleanupWhenSettled) removeOwnedOutput(fs, outputDirectory, ownsOutput);
+        return;
+      }
       if (code !== 0) {
-        fail(new Error(stderr.trim() || "Analysis exited with code " + code + "."));
+        fail(new Error(stderr.trim() || "Analysis exited with code " + code + "."), true);
         return;
       }
       fs.readFile(path.join(outputDirectory, "analysis.json"), "utf8", function (error, raw) {
-        if (error) return fail(error);
+        if (error) return fail(error, true);
         try {
+          var analysis = JSON.parse(raw);
           settled = true;
-          if (handlers.onComplete) handlers.onComplete(JSON.parse(raw), outputDirectory);
+          finish();
+          if (handlers.onComplete) handlers.onComplete(analysis, outputDirectory);
         } catch (parseError) {
-          fail(parseError);
+          if (!settled) fail(parseError, true);
+          else if (handlers.onError) handlers.onError(parseError);
         }
       });
     });
-    return child;
+    return {
+      child: child,
+      cancel: cancel,
+      cleanup: function () { removeOwnedOutput(fs, outputDirectory, ownsOutput); },
+      outputDirectory: outputDirectory
+    };
   }
 
   return {

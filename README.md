@@ -37,8 +37,11 @@ In the CEP panel, select a footage layer (or a footage item in the Project panel
 three ranked anchor candidates for every detected shot. Choose an anchor, use **Go to anchor in
 After Effects** to move the active composition's playhead, then export a schema-valid
 `scene-plan.json` containing source identity, media timebase, and timestamp anchors. Navigation
-refuses to control a selected layer whose source path differs from the analyzed footage. During development, keep the repository layout
-intact so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
+refuses to control a selected layer whose source path differs from the analyzed footage. A running
+analysis can be cancelled from the panel and is stopped automatically after 30 minutes. Cancelled,
+timed-out, and failed runs remove their panel-owned temporary output; completed results remain
+available for preview and scene-plan export. During development, keep the repository layout intact
+so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
 `AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
 
 Validate a scene plan before handing it to the After Effects host bridge:

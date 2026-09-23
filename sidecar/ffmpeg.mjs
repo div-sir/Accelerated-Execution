@@ -76,12 +76,15 @@ export async function sourceIdentity(input) {
   };
 }
 
-export async function probeMedia(input, { ffprobe = process.env.AE_FFPROBE_PATH || "ffprobe" } = {}) {
+export async function probeMedia(input, {
+  ffprobe = process.env.AE_FFPROBE_PATH || "ffprobe",
+  signal,
+} = {}) {
   const { stdout } = await run(ffprobe, [
     "-v", "error", "-select_streams", "v:0", "-count_frames",
     "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,time_base,duration,nb_frames,nb_read_frames:format=duration",
     "-of", "json", input,
-  ]);
+  ], { signal });
   const data = JSON.parse(stdout.toString("utf8"));
   const stream = data.streams && data.streams[0];
   if (!stream) throw new Error("No video stream found.");
@@ -107,13 +110,17 @@ export async function probeMedia(input, { ffprobe = process.env.AE_FFPROBE_PATH 
   };
 }
 
-export async function detectSceneCuts(input, { threshold = 0.3, ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg" } = {}) {
+export async function detectSceneCuts(input, {
+  threshold = 0.3,
+  ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg",
+  signal,
+} = {}) {
   if (!(threshold > 0 && threshold < 1)) throw new RangeError("Scene threshold must be between 0 and 1.");
   const { stderr } = await run(ffmpeg, [
     "-hide_banner", "-i", input,
     "-vf", `select='gt(scene,${threshold})',showinfo`,
     "-an", "-f", "null", "-",
-  ]);
+  ], { signal });
   const cuts = [];
   for (const match of stderr.matchAll(/pts_time:([0-9.]+)/g)) {
     const time = Number(match[1]);
@@ -125,6 +132,7 @@ export async function detectSceneCuts(input, { threshold = 0.3, ffmpeg = process
 export async function generateProxy(input, output, {
   height = 720,
   ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg",
+  signal,
 } = {}) {
   if (!Number.isInteger(height) || height < 144 || height > 2160) {
     throw new RangeError("Proxy height must be an integer between 144 and 2160.");
@@ -135,7 +143,7 @@ export async function generateProxy(input, output, {
     "-map", "0:v:0", "-an", "-vf", `scale=-2:'min(${height},ih)'`,
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
     "-pix_fmt", "yuv420p", "-movflags", "+faststart", output,
-  ]);
+  ], { signal });
   return path.resolve(output);
 }
 
@@ -159,11 +167,11 @@ export function buildCandidateTimes(duration, cuts, candidatesPerShot = 3) {
   return candidates;
 }
 
-async function extractGrayFrame(input, time, ffmpeg) {
+async function extractGrayFrame(input, time, ffmpeg, signal) {
   const { stdout } = await run(ffmpeg, [
     "-v", "error", "-ss", Math.max(0, time).toFixed(6), "-i", input,
     "-frames:v", "1", "-vf", "scale=160:90,format=gray", "-f", "rawvideo", "pipe:1",
-  ]);
+  ], { signal });
   if (stdout.length !== 160 * 90) throw new Error(`Could not decode frame at ${time.toFixed(3)} seconds.`);
   return new Uint8Array(stdout);
 }
@@ -176,9 +184,9 @@ export async function analyzeCandidates(input, candidates, media, options = {}) 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
     const [previous, current, next] = await Promise.all([
-      extractGrayFrame(input, Math.max(candidate.shotStart, candidate.time - offset), ffmpeg),
-      extractGrayFrame(input, candidate.time, ffmpeg),
-      extractGrayFrame(input, Math.min(candidate.shotEnd - 0.001, candidate.time + offset), ffmpeg),
+      extractGrayFrame(input, Math.max(candidate.shotStart, candidate.time - offset), ffmpeg, options.signal),
+      extractGrayFrame(input, candidate.time, ffmpeg, options.signal),
+      extractGrayFrame(input, Math.min(candidate.shotEnd - 0.001, candidate.time + offset), ffmpeg, options.signal),
     ]);
     const { time, ...candidateMetadata } = candidate;
     analyzed.push({
@@ -205,7 +213,7 @@ export async function writePreviews(input, candidates, outputDirectory, options 
     await run(ffmpeg, [
       "-v", "error", "-y", "-ss", candidate.timeSeconds.toFixed(6), "-i", input,
       "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", path.join(previewDirectory, filename),
-    ]);
+    ], { signal: options.signal });
     candidate.preview = path.join("previews", filename);
     progress(options, "previews", { completed: index + 1, total: candidates.length });
   }
