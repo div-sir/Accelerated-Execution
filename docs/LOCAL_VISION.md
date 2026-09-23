@@ -64,3 +64,28 @@ Response:
 The local model is a fallback. AE native Object Matte or Roto Brush remains the preferred execution path when it is available and scriptable enough for the requested operation.
 
 The provider protocol is model-agnostic. A later worker can use a Hugging Face SAM-family checkpoint, MLX/Core ML, or another local segmentation runtime without changing the AE panel.
+
+
+## Included worker
+
+The repository includes `tools/local_sam_worker.py`.
+
+Install the optional dependencies:
+
+```bash
+python3 -m pip install -r requirements-local-sam.txt
+```
+
+Start the worker:
+
+```bash
+npm run sam:serve
+```
+
+The default model is `facebook/sam2.1-hiera-tiny`. Override it with `AE_LOCAL_SAM_MODEL`.
+
+On Apple Silicon, the worker prefers PyTorch MPS when it is available. It uses CUDA when available and otherwise falls back to CPU.
+
+For local process isolation, set the same `AE_LOCAL_SAM_TOKEN` environment variable for the extension process and the worker. The adapter sends it as a Bearer token.
+
+The first segmentation request can take longer because the worker lazily downloads and loads the model.
