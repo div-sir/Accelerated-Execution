@@ -14,6 +14,7 @@ export function localSamConfig(env = process.env) {
   return {
     endpoint: normalizeEndpoint(env.AE_LOCAL_SAM_ENDPOINT || "http://127.0.0.1:8765"),
     timeoutMs: Math.max(1000, Number(env.AE_LOCAL_SAM_TIMEOUT_MS) || 30000),
+    token: env.AE_LOCAL_SAM_TOKEN || "",
   };
 }
 
@@ -21,7 +22,8 @@ export async function checkLocalSam(config = localSamConfig()) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(config.timeoutMs, 3000));
-    const response = await fetch(config.endpoint + "/health", { signal: controller.signal });
+    const headers = config.token ? { authorization: "Bearer " + config.token } : {};
+    const response = await fetch(config.endpoint + "/health", { headers, signal: controller.signal });
     clearTimeout(timer);
     if (!response.ok) return { available: false, error: "health returned HTTP " + response.status };
     const body = await response.json();
@@ -46,7 +48,10 @@ export async function segmentImage(request, config = localSamConfig()) {
   try {
     const response = await fetch(config.endpoint + "/segment", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(config.token ? { authorization: "Bearer " + config.token } : {}),
+      },
       body: JSON.stringify({
         imagePath,
         target: request.target,
