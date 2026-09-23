@@ -30,6 +30,12 @@ The analyzer detects scene cuts, samples three frames per shot, calculates deter
 sharpness, stability, visibility, and trackability metrics, ranks the candidates, and writes
 `analysis.json` plus a JPEG preview for each selected frame. No footage leaves the machine.
 
+In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
+**Analyze selected footage**. The panel launches the same local CLI, reports progress, and shows
+the selected preview for every detected shot. During development, keep the repository layout
+intact so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
+`AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
+
 Validate a scene plan before handing it to the After Effects host bridge:
 
 ```bash

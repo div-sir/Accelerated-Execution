@@ -12,6 +12,8 @@
 - [x] Add local keyframe scoring.
 - [x] Add JSON scene plan validation.
 - [x] Add selected-footage host detection.
+- [x] Launch local analysis from the CEP panel.
+- [x] Preview selected candidates in the CEP panel.
 
 ## v0.2 - Smart Mask
 

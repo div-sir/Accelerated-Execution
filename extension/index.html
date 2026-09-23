@@ -9,8 +9,14 @@
     h1 { font-size: 16px; margin: 0 0 14px; }
     .card { background: #2d2d2d; border: 1px solid #404040; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
     button, select { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; }
+    button:disabled { opacity: .55; }
     .muted { color: #aaa; font-size: 12px; }
     #status { white-space: pre-wrap; }
+    #results:empty { display: none; }
+    .shot { display: grid; grid-template-columns: 96px 1fr; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #454545; }
+    .shot img { display: block; width: 96px; height: 54px; object-fit: cover; background: #181818; border-radius: 4px; }
+    .shot strong, .shot span { display: block; }
+    .shot span { color: #aaa; font-size: 11px; margin-top: 3px; }
   </style>
 </head>
 <body>
@@ -32,8 +38,10 @@
     <strong>MVP</strong>
     <button id="analyze">Analyze selected footage</button>
     <div id="status" class="muted">Ready.</div>
+    <div id="results"></div>
   </div>
   <script src="./js/CSInterface.js"></script>
+  <script src="./js/sidecar.js"></script>
   <script src="./js/main.js"></script>
 </body>
 </html>

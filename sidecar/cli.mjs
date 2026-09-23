@@ -10,7 +10,7 @@ function usage() {
 
 Usage:
   node sidecar/cli.mjs doctor
-  node sidecar/cli.mjs analyze <video> [--output <directory>] [--threshold <0..1>] [--candidates <count>]
+  node sidecar/cli.mjs analyze <video> [--output <directory>] [--threshold <0..1>] [--candidates <count>] [--events]
   node sidecar/cli.mjs proxy <video> --output <proxy.mp4> [--height <pixels>]
   node sidecar/cli.mjs validate <scene-plan.json>`);
 }
@@ -54,7 +54,15 @@ async function main() {
       throw new Error("--candidates must be an integer between 1 and 10.");
     }
     await fs.mkdir(outputDirectory, { recursive: true });
-    const analysis = await analyzeFootage(path.resolve(args[0]), { outputDirectory, threshold, candidatesPerShot });
+    const onProgress = args.includes("--events")
+      ? (event) => console.log(`AE_EVENT ${JSON.stringify(event)}`)
+      : undefined;
+    const analysis = await analyzeFootage(path.resolve(args[0]), {
+      outputDirectory,
+      threshold,
+      candidatesPerShot,
+      onProgress,
+    });
     const output = path.join(outputDirectory, "analysis.json");
     await fs.writeFile(output, `${JSON.stringify(analysis, null, 2)}\n`);
     console.log(`Analyzed ${analysis.shots.length} shot(s).`);

@@ -3,6 +3,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { frameMetrics, rankCandidates } from "./keyframe-score.mjs";
 
+function progress(options, stage, details = {}) {
+  if (typeof options.onProgress === "function") options.onProgress({ stage, ...details });
+}
+
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], ...options });
@@ -114,37 +118,46 @@ async function extractGrayFrame(input, time, ffmpeg) {
   return new Uint8Array(stdout);
 }
 
-export async function analyzeCandidates(input, candidates, media, { ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg" } = {}) {
+export async function analyzeCandidates(input, candidates, media, options = {}) {
+  const ffmpeg = options.ffmpeg || process.env.AE_FFMPEG_PATH || "ffmpeg";
   const offset = Math.min(0.1, 1 / media.frameRate * 2);
   const analyzed = [];
-  for (const candidate of candidates) {
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
     const [previous, current, next] = await Promise.all([
       extractGrayFrame(input, Math.max(candidate.shotStart, candidate.time - offset), ffmpeg),
       extractGrayFrame(input, candidate.time, ffmpeg),
       extractGrayFrame(input, Math.min(candidate.shotEnd - 0.001, candidate.time + offset), ffmpeg),
     ]);
     analyzed.push({ ...candidate, frame: Math.round(candidate.time * media.frameRate), metrics: frameMetrics(current, previous, next) });
+    progress(options, "candidates", { completed: index + 1, total: candidates.length });
   }
   return analyzed;
 }
 
-export async function writePreviews(input, candidates, outputDirectory, { ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg" } = {}) {
+export async function writePreviews(input, candidates, outputDirectory, options = {}) {
+  const ffmpeg = options.ffmpeg || process.env.AE_FFMPEG_PATH || "ffmpeg";
   const previewDirectory = path.join(outputDirectory, "previews");
   await fs.mkdir(previewDirectory, { recursive: true });
-  for (const candidate of candidates) {
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
     const filename = `shot-${String(candidate.shotIndex + 1).padStart(3, "0")}-frame-${String(candidate.frame).padStart(6, "0")}.jpg`;
     await run(ffmpeg, [
       "-v", "error", "-y", "-ss", candidate.time.toFixed(6), "-i", input,
       "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", path.join(previewDirectory, filename),
     ]);
     candidate.preview = path.join("previews", filename);
+    progress(options, "previews", { completed: index + 1, total: candidates.length });
   }
 }
 
 export async function analyzeFootage(input, options = {}) {
+  progress(options, "probe");
   const media = await probeMedia(input, options);
+  progress(options, "cuts");
   const cuts = await detectSceneCuts(input, options);
   const candidateTimes = buildCandidateTimes(media.duration, cuts, options.candidatesPerShot || 3);
+  progress(options, "candidates", { completed: 0, total: candidateTimes.length });
   const analyzed = await analyzeCandidates(input, candidateTimes, media, options);
   const shots = [];
   for (let index = 0; index < cuts.length + 1; index += 1) {
@@ -158,6 +171,10 @@ export async function analyzeFootage(input, options = {}) {
     });
   }
   const selected = shots.map((shot) => shot.selected).filter(Boolean);
-  if (options.outputDirectory && options.previews !== false) await writePreviews(input, selected, options.outputDirectory, options);
+  if (options.outputDirectory && options.previews !== false) {
+    progress(options, "previews", { completed: 0, total: selected.length });
+    await writePreviews(input, selected, options.outputDirectory, options);
+  }
+  progress(options, "complete", { shots: shots.length });
   return { version: "0.1", source: path.resolve(input), media, settings: { sceneThreshold: options.threshold || 0.3 }, cuts, shots };
 }

@@ -9,6 +9,7 @@ const required = [
   "extension/index.html",
   "extension/js/CSInterface.js",
   "extension/js/main.js",
+  "extension/js/sidecar.js",
   "extension/jsx/host.jsx",
   "core/schema/scene-plan.schema.json",
   "sidecar/cli.mjs",
