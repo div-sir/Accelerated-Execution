@@ -24,8 +24,8 @@
 
 ## v0.2 - Smart Mask
 
-- [ ] Select a candidate frame from local scores.
-- [ ] Let the user click or box a target.
+- [x] Select a candidate frame from local scores.
+- [x] Let the user click or box a target.
 - [ ] Route people and objects to AE native matte tools when possible.
 - [ ] Add local SAM-family fallback provider.
 - [ ] Add matte quality checks.

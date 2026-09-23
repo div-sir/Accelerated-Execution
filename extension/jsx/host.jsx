@@ -192,7 +192,8 @@ function AE_applyScenePlan(encodedScenePlan) {
         engine: String(task.engine || "unknown"),
         anchorTime: anchorTime,
         compTime: compTime,
-        confidence: Number(task.confidence)
+        confidence: Number(task.confidence),
+        targetKind: task.target ? String(task.target.kind) : null
       });
     }
 
@@ -204,6 +205,7 @@ function AE_applyScenePlan(encodedScenePlan) {
     for (shotIndex = 0; shotIndex < planned.length; shotIndex += 1) {
       var entry = planned[shotIndex];
       var comment = markerPrefix + entry.shotId + " | " + entry.taskType + " | " + entry.engine;
+      if (entry.targetKind) comment += " | target " + entry.targetKind;
       if (isFinite(entry.confidence)) comment += " | confidence " + entry.confidence.toFixed(3);
       var marker = new MarkerValue(comment);
       marker.chapter = entry.shotId;

@@ -15,12 +15,20 @@
     #results:empty { display: none; }
     .shot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #454545; }
     .shot-header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-    .shot-header span, .candidate span { color: #aaa; font-size: 11px; }
+    .shot-header span, .candidate-label { color: #aaa; font-size: 11px; }
     .candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
     button.candidate { min-width: 0; padding: 4px; background: #242424; color: #eee; border: 1px solid #4a4a4a; border-radius: 5px; }
     button.candidate.selected { border-color: #78a9ff; box-shadow: 0 0 0 1px #78a9ff inset; }
-    .candidate img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #181818; border-radius: 3px; }
-    .candidate span { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+    .candidate-preview { display: block; position: relative; overflow: hidden; background: #181818; border-radius: 3px; }
+    .candidate-preview.targetable { cursor: crosshair; }
+    .candidate img { display: block; width: 100%; height: auto; }
+    .candidate-label { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+    .target-overlay { position: absolute; z-index: 2; box-sizing: border-box; pointer-events: none; border: 2px solid #ffcc4d; background: rgba(255, 204, 77, .14); }
+    .target-overlay.point { width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #ffcc4d; box-shadow: 0 0 0 2px rgba(0, 0, 0, .6); }
+    .target-overlay.draft { border-style: dashed; }
+    .target-controls { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 7px; color: #bbb; font-size: 11px; }
+    .target-controls span { flex: 1; }
+    button.target-clear { width: auto; flex: none; margin: 0; padding: 4px 7px; }
   </style>
 </head>
 <body>

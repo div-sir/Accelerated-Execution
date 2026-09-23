@@ -4,7 +4,7 @@ import test from "node:test";
 import { validateScenePlan } from "../sidecar/scene-plan.mjs";
 
 const require = createRequire(import.meta.url);
-const { buildScenePlan, engineFor } = require("../extension/js/scene-plan.js");
+const { buildScenePlan, engineFor, targetFromDrag } = require("../extension/js/scene-plan.js");
 
 function analysis(selectedTime = 1, frameRateMode = "cfr") {
   return {
@@ -75,4 +75,48 @@ test("engineFor routes planar work to Mocha unless native-only mode is selected"
 
 test("buildScenePlan rejects anchors outside their shot", () => {
   assert.throws(() => buildScenePlan(analysis(2.1), "point-track", "efficient"), /outside the shot/);
+});
+
+test("targetFromDrag creates normalized point and box targets", () => {
+  assert.deepEqual(targetFromDrag(50, 25, 51, 27, 200, 100, 4), {
+    kind: "point",
+    coordinateSpace: "normalized-source",
+    x: 0.255,
+    y: 0.27,
+  });
+  assert.deepEqual(targetFromDrag(180, 90, 40, 10, 200, 100, 4), {
+    kind: "box",
+    coordinateSpace: "normalized-source",
+    x: 0.2,
+    y: 0.1,
+    width: 0.7,
+    height: 0.8,
+  });
+});
+
+test("buildScenePlan carries a normalized target into its task", () => {
+  const input = analysis();
+  input.shots[0].target = {
+    kind: "box",
+    x: 0.25,
+    y: 0.2,
+    width: 0.5,
+    height: 0.6,
+  };
+  const plan = buildScenePlan(input, "roto", "efficient");
+  assert.deepEqual(plan.shots[0].tasks[0].target, {
+    kind: "box",
+    coordinateSpace: "normalized-source",
+    x: 0.25,
+    y: 0.2,
+    width: 0.5,
+    height: 0.6,
+  });
+  assert.equal(validateScenePlan(plan).valid, true);
+});
+
+test("buildScenePlan rejects targets outside the source frame", () => {
+  const input = analysis();
+  input.shots[0].target = { kind: "box", x: 0.8, y: 0.1, width: 0.3, height: 0.2 };
+  assert.throws(() => buildScenePlan(input, "roto", "efficient"), /inside the source frame/);
 });

@@ -1,5 +1,6 @@
 const TASK_TYPES = new Set(["roto", "planar-track", "point-track", "camera-track", "static-mask"]);
 const ENGINES = new Set(["ae-native", "mocha", "local-ai", "vision"]);
+const TARGET_KINDS = new Set(["point", "box"]);
 
 export function validateScenePlan(plan) {
   const errors = [];
@@ -84,6 +85,36 @@ export function validateScenePlan(plan) {
         } else if (Number.isInteger(shot.startFrame) && Number.isInteger(shot.endFrame) &&
                    (task.anchorFrame < shot.startFrame || task.anchorFrame > shot.endFrame)) {
           fail(`${taskBase}.anchorFrame`, "must fall inside its shot");
+        }
+      }
+      if (task.target !== undefined) {
+        const target = task.target;
+        if (!target || typeof target !== "object" || Array.isArray(target)) {
+          fail(`${taskBase}.target`, "must be an object");
+        } else {
+          if (!TARGET_KINDS.has(target.kind)) fail(`${taskBase}.target.kind`, "must be point or box");
+          if (target.coordinateSpace !== "normalized-source") {
+            fail(`${taskBase}.target.coordinateSpace`, 'must equal "normalized-source"');
+          }
+          for (const coordinate of ["x", "y"]) {
+            if (!(typeof target[coordinate] === "number" && target[coordinate] >= 0 && target[coordinate] <= 1)) {
+              fail(`${taskBase}.target.${coordinate}`, "must be between 0 and 1");
+            }
+          }
+          if (target.kind === "box") {
+            if (!(typeof target.width === "number" && target.width > 0 && target.width <= 1)) {
+              fail(`${taskBase}.target.width`, "must be greater than 0 and at most 1");
+            }
+            if (!(typeof target.height === "number" && target.height > 0 && target.height <= 1)) {
+              fail(`${taskBase}.target.height`, "must be greater than 0 and at most 1");
+            }
+            if (typeof target.x === "number" && typeof target.width === "number" && target.x + target.width > 1.000001) {
+              fail(`${taskBase}.target.width`, "must stay inside the source frame");
+            }
+            if (typeof target.y === "number" && typeof target.height === "number" && target.y + target.height > 1.000001) {
+              fail(`${taskBase}.target.height`, "must stay inside the source frame");
+            }
+          }
         }
       }
     });

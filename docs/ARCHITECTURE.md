@@ -81,3 +81,11 @@ panel can also apply the plan as managed layer markers. Application validates ev
 opening a single AE undo group, preserves user-authored markers, and replaces only markers carrying
 the Accelerated Execution prefix. These markers stage later tracking and masking execution; they do
 not claim that the routed task has already run.
+
+## Target coordinates
+
+An optional task target is captured on the selected, uncropped preview. A click produces a point;
+a two-dimensional drag produces a box. Both use `normalized-source` coordinates in the inclusive
+0–1 range so the plan remains independent of preview resolution and panel size. Changing the
+anchor candidate clears its target because a region selected on one decoded frame must not silently
+carry over to another.

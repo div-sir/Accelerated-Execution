@@ -67,7 +67,13 @@ function plan(sourcePath = "/Footage/source.mp4") {
         id: "shot-001",
         startTime: 0,
         endTime: 2,
-        tasks: [{ type: "point-track", engine: "ae-native", anchorTime: 1, confidence: 0.91 }],
+        tasks: [{
+          type: "point-track",
+          engine: "ae-native",
+          anchorTime: 1,
+          confidence: 0.91,
+          target: { kind: "point", coordinateSpace: "normalized-source", x: 0.4, y: 0.6 },
+        }],
       },
       {
         id: "shot-002",
@@ -101,7 +107,7 @@ test("AE_applyScenePlan replaces managed markers and preserves user markers", ()
   });
   assert.deepEqual(host.markers.keys.map((entry) => entry.time), [2.5, 3.5, 7]);
   assert.equal(host.markers.keys[0].value.chapter, "shot-001");
-  assert.match(host.markers.keys[0].value.comment, /point-track \| ae-native \| confidence 0\.910$/);
+  assert.match(host.markers.keys[0].value.comment, /point-track \| ae-native \| target point \| confidence 0\.910$/);
   assert.equal(host.markers.keys[2].value.comment, "Director note");
   assert.deepEqual(host.undo, [
     ["begin", "Apply Accelerated Execution Scene Plan"],

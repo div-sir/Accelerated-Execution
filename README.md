@@ -43,8 +43,11 @@ timed-out, and failed runs remove their panel-owned temporary output; completed 
 available for preview and scene-plan export. **Apply anchor markers in AE** writes the selected
 anchors to the analyzed footage layer in one undo group. Reapplying replaces only markers managed
 by Accelerated Execution and refuses to overwrite a user marker on the same frame. The markers are
-execution guides; tracking and masking remain explicit later steps. During development, keep the
-repository layout intact so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
+execution guides; tracking and masking remain explicit later steps. On the selected anchor preview,
+click to save a point target or drag to save a box target. Targets use normalized source-frame
+coordinates and are included in exported or applied scene plans. Choosing another anchor clears the
+old target. During development, keep the repository layout intact so the installed/symlinked
+`extension/` directory remains next to `sidecar/`. Set
 `AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
 
 Validate a scene plan before handing it to the After Effects host bridge:

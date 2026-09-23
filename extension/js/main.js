@@ -37,6 +37,77 @@
     return message;
   }
 
+  function drawTargetOverlay(container, target, draft) {
+    var overlay = document.createElement("span");
+    overlay.className = "target-overlay " + target.kind + (draft ? " draft" : "");
+    overlay.style.left = (target.x * 100) + "%";
+    overlay.style.top = (target.y * 100) + "%";
+    if (target.kind === "box") {
+      overlay.style.width = (target.width * 100) + "%";
+      overlay.style.height = (target.height * 100) + "%";
+    }
+    container.appendChild(overlay);
+    return overlay;
+  }
+
+  function bindTargetSelection(preview, shot, analysis, outputDirectory, suppressClick) {
+    preview.addEventListener("mousedown", function (downEvent) {
+      if (downEvent.button !== 0) return;
+      downEvent.preventDefault();
+      downEvent.stopPropagation();
+      var bounds = preview.getBoundingClientRect();
+      var startX = downEvent.clientX - bounds.left;
+      var startY = downEvent.clientY - bounds.top;
+      var draft = null;
+
+      function update(event) {
+        if (draft && draft.parentNode) draft.parentNode.removeChild(draft);
+        var target = AEScenePlan.targetFromDrag(
+          startX,
+          startY,
+          event.clientX - bounds.left,
+          event.clientY - bounds.top,
+          bounds.width,
+          bounds.height,
+          4
+        );
+        draft = drawTargetOverlay(preview, target, true);
+      }
+
+      function finish(upEvent) {
+        window.removeEventListener("mousemove", update);
+        window.removeEventListener("mouseup", finish);
+        window.removeEventListener("blur", cancel);
+        suppressClick.value = true;
+        shot.target = AEScenePlan.targetFromDrag(
+          startX,
+          startY,
+          upEvent.clientX - bounds.left,
+          upEvent.clientY - bounds.top,
+          bounds.width,
+          bounds.height,
+          4
+        );
+        status.textContent = shot.target.kind === "box"
+          ? "Target box saved for " + shot.id + "."
+          : "Target point saved for " + shot.id + ".";
+        renderResults(analysis, outputDirectory);
+      }
+
+      function cancel() {
+        window.removeEventListener("mousemove", update);
+        window.removeEventListener("mouseup", finish);
+        window.removeEventListener("blur", cancel);
+        if (draft && draft.parentNode) draft.parentNode.removeChild(draft);
+      }
+
+      window.addEventListener("mousemove", update);
+      window.addEventListener("mouseup", finish);
+      window.addEventListener("blur", cancel);
+      update(downEvent);
+    });
+  }
+
   function renderResults(analysis, outputDirectory) {
     results.textContent = "";
     analysis.shots.forEach(function (shot) {
@@ -56,29 +127,64 @@
       var candidates = document.createElement("div");
       candidates.className = "candidates";
       shot.candidates.forEach(function (candidate) {
+        var selected = candidate.timeSeconds === shot.selected.timeSeconds;
+        var suppressClick = { value: false };
         var button = document.createElement("button");
         button.type = "button";
-        button.className = "candidate" + (candidate.timeSeconds === shot.selected.timeSeconds ? " selected" : "");
+        button.className = "candidate" + (selected ? " selected" : "");
         button.setAttribute("aria-label", "Select " + candidate.timeSeconds.toFixed(3) + " seconds for " + shot.id);
+        var preview = document.createElement("span");
+        preview.className = "candidate-preview" + (selected ? " targetable" : "");
         var image = document.createElement("img");
         image.alt = "Candidate at " + candidate.timeSeconds.toFixed(3) + " seconds";
+        image.draggable = false;
         image.src = AESidecar.fileUrl(
           require("path").join(outputDirectory, candidate.preview),
           process.platform
         );
+        preview.appendChild(image);
+        if (selected && shot.target) drawTargetOverlay(preview, shot.target, false);
+        if (selected) bindTargetSelection(preview, shot, analysis, outputDirectory, suppressClick);
         var label = document.createElement("span");
+        label.className = "candidate-label";
         label.textContent = candidate.sourceFrame === null
           ? candidate.timeSeconds.toFixed(3) + "s · " + candidate.score.toFixed(3)
           : "f" + candidate.sourceFrame + " · " + candidate.score.toFixed(3);
-        button.appendChild(image);
+        button.appendChild(preview);
         button.appendChild(label);
         button.addEventListener("click", function () {
+          if (suppressClick.value) {
+            suppressClick.value = false;
+            return;
+          }
+          if (shot.selected.timeSeconds !== candidate.timeSeconds) shot.target = null;
           shot.selected = candidate;
           renderResults(analysis, outputDirectory);
         });
         candidates.appendChild(button);
       });
       item.appendChild(candidates);
+
+      var targetControls = document.createElement("div");
+      targetControls.className = "target-controls";
+      var targetStatus = document.createElement("span");
+      targetStatus.textContent = shot.target
+        ? "Target: " + shot.target.kind + " · click or drag to replace"
+        : "Target: click for a point or drag a box on the selected preview";
+      targetControls.appendChild(targetStatus);
+      if (shot.target) {
+        var clearTarget = document.createElement("button");
+        clearTarget.type = "button";
+        clearTarget.className = "target-clear";
+        clearTarget.textContent = "Clear target";
+        clearTarget.addEventListener("click", function () {
+          shot.target = null;
+          status.textContent = "Target cleared for " + shot.id + ".";
+          renderResults(analysis, outputDirectory);
+        });
+        targetControls.appendChild(clearTarget);
+      }
+      item.appendChild(targetControls);
 
       var locate = document.createElement("button");
       locate.type = "button";
