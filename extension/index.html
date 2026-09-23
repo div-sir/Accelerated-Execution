@@ -38,7 +38,8 @@
 </head>
 <body>
   <h1>Accelerated Execution</h1>
-  <div class="card">
+  <details class="card">
+    <summary><strong>Advanced controls</strong></summary>
     <strong>Execution mode</strong>
     <select id="mode">
       <option value="efficient">Efficient — local first</option>
@@ -56,26 +57,32 @@
       <label>Feather (px)<input id="mask-feather" type="number" min="0" max="500" step="0.5" value="0" /></label>
       <label>Expansion (px)<input id="mask-expansion" type="number" min="-500" max="500" step="0.5" value="0" /></label>
     </div>
-  </div>
+  </details>
   <div class="card">
     <strong>Active composition</strong>
     <div id="comp" class="muted">Not checked.</div>
     <button id="inspect">Inspect AE</button>
   </div>
   <div class="card">
-    <strong>MVP</strong>
-    <button id="analyze">Analyze selected footage</button>
-    <button id="cancel" disabled>Cancel analysis</button>
-    <button id="apply" disabled>Apply anchor markers in AE</button>
-    <button id="execute" disabled>Execute static masks in AE</button>
-    <button id="export" disabled>Export scene plan</button>
+    <strong>Preparation</strong>
+    <div class="muted">Select footage, then prepare it. Accelerated Execution will detect shots and keep the best working frame for each shot. It will not apply effects to the composition.</div>
+    <button id="analyze">Prepare selected footage</button>
+    <button id="cancel" disabled>Cancel preparation</button>
     <div id="status" class="muted">Ready.</div>
     <div id="results"></div>
   </div>
+  <details class="card">
+    <summary><strong>Execution tools</strong></summary>
+    <div class="muted">Optional. These controls apply prepared data to After Effects.</div>
+    <button id="apply" disabled>Apply anchor markers in AE</button>
+    <button id="execute" disabled>Execute static masks in AE</button>
+    <button id="export" disabled>Export scene plan</button>
+  </details>
   <script src="./js/CSInterface.js"></script>
   <script src="./js/sidecar.js"></script>
   <script src="./js/task-router.js"></script>
   <script src="./js/scene-plan.js"></script>
+  <script src="./js/preparation.js"></script>
   <script src="./js/main.js"></script>
 </body>
 </html>
