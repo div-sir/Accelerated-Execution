@@ -12,7 +12,8 @@
     "check": "node scripts/check.mjs && node --test",
     "doctor": "node sidecar/cli.mjs doctor",
     "proxy": "node sidecar/cli.mjs proxy",
-    "test": "node --test"
+    "test": "node --test",
+    "sam:serve": "python3 tools/local_sam_worker.py"
   },
   "engines": {
     "node": ">=20"
