@@ -62,3 +62,13 @@ sidecar/
 assets/
   reusable effect presets
 ```
+
+## CEP analysis flow
+
+The panel asks the isolated ExtendScript bridge for the selected footage path, then starts the
+Node sidecar without invoking a shell. The sidecar streams structured progress events and writes
+analysis data plus local JPEG previews to a temporary output directory. Users select one ranked
+anchor per shot; the panel converts those selections into a validated scene plan and can move the
+active After Effects composition to an anchor for visual confirmation. Anchor navigation maps
+source frames through the selected footage layer's start time and stretch; trimmed-out and
+time-remapped anchors are rejected rather than navigating to an incorrect composition time.

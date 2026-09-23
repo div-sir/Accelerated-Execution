@@ -13,10 +13,14 @@
     .muted { color: #aaa; font-size: 12px; }
     #status { white-space: pre-wrap; }
     #results:empty { display: none; }
-    .shot { display: grid; grid-template-columns: 96px 1fr; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #454545; }
-    .shot img { display: block; width: 96px; height: 54px; object-fit: cover; background: #181818; border-radius: 4px; }
-    .shot strong, .shot span { display: block; }
-    .shot span { color: #aaa; font-size: 11px; margin-top: 3px; }
+    .shot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #454545; }
+    .shot-header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .shot-header span, .candidate span { color: #aaa; font-size: 11px; }
+    .candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    button.candidate { min-width: 0; padding: 4px; background: #242424; color: #eee; border: 1px solid #4a4a4a; border-radius: 5px; }
+    button.candidate.selected { border-color: #78a9ff; box-shadow: 0 0 0 1px #78a9ff inset; }
+    .candidate img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #181818; border-radius: 3px; }
+    .candidate span { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -28,6 +32,13 @@
       <option value="native">AE native only</option>
       <option value="maximum">Maximum assistance</option>
     </select>
+    <select id="task" aria-label="Task type">
+      <option value="point-track">Point track</option>
+      <option value="planar-track">Planar track</option>
+      <option value="camera-track">Camera track</option>
+      <option value="roto">Rotoscope</option>
+      <option value="static-mask">Static mask</option>
+    </select>
   </div>
   <div class="card">
     <strong>Active composition</strong>
@@ -37,11 +48,13 @@
   <div class="card">
     <strong>MVP</strong>
     <button id="analyze">Analyze selected footage</button>
+    <button id="export" disabled>Export scene plan</button>
     <div id="status" class="muted">Ready.</div>
     <div id="results"></div>
   </div>
   <script src="./js/CSInterface.js"></script>
   <script src="./js/sidecar.js"></script>
+  <script src="./js/scene-plan.js"></script>
   <script src="./js/main.js"></script>
 </body>
 </html>

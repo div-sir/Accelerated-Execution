@@ -59,3 +59,41 @@ function AE_getSelectedFootage() {
     return AE_json({ ok: false, error: error.toString() });
   }
 }
+
+function AE_setCurrentSourceFrame(frame, sourceFrameRate) {
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before setting an anchor." });
+    }
+    if (!item.selectedLayers.length) {
+      return AE_json({ ok: false, error: "Select the analyzed footage layer in the active composition." });
+    }
+    var layer = item.selectedLayers[0];
+    if (!layer.source || !(layer.source instanceof FootageItem)) {
+      return AE_json({ ok: false, error: "The selected layer is not footage." });
+    }
+    if (layer.timeRemapEnabled) {
+      return AE_json({ ok: false, error: "Anchor navigation does not yet support time-remapped layers." });
+    }
+    var targetFrame = Number(frame);
+    var footageFrameRate = Number(sourceFrameRate);
+    if (!isFinite(targetFrame) || targetFrame < 0 || !isFinite(footageFrameRate) || footageFrameRate <= 0) {
+      return AE_json({ ok: false, error: "Anchor frame is invalid." });
+    }
+    var sourceTime = targetFrame / footageFrameRate;
+    var compTime = layer.startTime + sourceTime * (layer.stretch / 100);
+    if (compTime < layer.inPoint || compTime > layer.outPoint) {
+      return AE_json({ ok: false, error: "The anchor is outside the selected layer's trimmed range." });
+    }
+    item.time = compTime;
+    return AE_json({
+      ok: true,
+      sourceFrame: Math.round(targetFrame),
+      compFrame: Math.round(item.time * item.frameRate),
+      time: item.time
+    });
+  } catch (error) {
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}

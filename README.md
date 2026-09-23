@@ -32,7 +32,9 @@ sharpness, stability, visibility, and trackability metrics, ranks the candidates
 
 In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
 **Analyze selected footage**. The panel launches the same local CLI, reports progress, and shows
-the selected preview for every detected shot. During development, keep the repository layout
+three ranked anchor candidates for every detected shot. Choose an anchor, use **Go to anchor in
+After Effects** to move the active composition's playhead, then export a schema-valid
+`scene-plan.json` for the selected task and execution mode. During development, keep the repository layout
 intact so the installed/symlinked `extension/` directory remains next to `sidecar/`. Set
 `AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
 

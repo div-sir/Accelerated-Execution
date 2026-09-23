@@ -14,6 +14,9 @@
 - [x] Add selected-footage host detection.
 - [x] Launch local analysis from the CEP panel.
 - [x] Preview selected candidates in the CEP panel.
+- [x] Let users choose an anchor candidate per shot.
+- [x] Export selected anchors as a scene plan.
+- [x] Move the active AE composition to an anchor frame.
 
 ## v0.2 - Smart Mask
 

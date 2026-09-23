@@ -170,10 +170,10 @@ export async function analyzeFootage(input, options = {}) {
       selected: ranked[0] || null,
     });
   }
-  const selected = shots.map((shot) => shot.selected).filter(Boolean);
+  const previewCandidates = shots.flatMap((shot) => shot.candidates);
   if (options.outputDirectory && options.previews !== false) {
-    progress(options, "previews", { completed: 0, total: selected.length });
-    await writePreviews(input, selected, options.outputDirectory, options);
+    progress(options, "previews", { completed: 0, total: previewCandidates.length });
+    await writePreviews(input, previewCandidates, options.outputDirectory, options);
   }
   progress(options, "complete", { shots: shots.length });
   return { version: "0.1", source: path.resolve(input), media, settings: { sceneThreshold: options.threshold || 0.3 }, cuts, shots };
