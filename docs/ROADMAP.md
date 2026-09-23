@@ -22,7 +22,18 @@
 - [x] Run real FFmpeg CFR/VFR fixtures in CI.
 - [x] Apply scene-plan anchors as safe, replaceable AE layer markers.
 
-## v0.2 - Smart Mask
+## v0.2 - Smart Preparation
+
+- [x] Make prepare-only workflow the default.
+- [x] Automatically keep the highest-ranked working frame for every shot.
+- [x] Write a preparation manifest without modifying the AE composition.
+- [x] Move execution controls behind an optional section.
+- [ ] Add automatic subject detection for likely foreground objects.
+- [ ] Precompute masks only when confidence is high.
+- [ ] Mark uncertain masks for optional review instead of blocking preparation.
+- [ ] Reuse prepared frames and masks across later effect operations.
+
+## v0.3 - Smart Mask
 
 - [x] Select a candidate frame from local scores.
 - [x] Let the user click or box a target.
@@ -34,14 +45,14 @@
 - [x] Add matte quality checks.
 - [x] Detect failed temporal spans and build retry plans.\n- [ ] Execute retry plans automatically.
 
-## v0.3 - Smart Track
+## v0.4 - Smart Track
 
 - [ ] Route planar surfaces to Mocha / planar tracking.
 - [ ] Route point features to Motion Tracker.
 - [ ] Route camera movement to 3D Camera Tracker.
 - [ ] Add multi-anchor recovery.
 
-## v0.4 - Semantic Compositing
+## v0.5 - Semantic Compositing
 
 - [ ] Ground Paint.
 - [ ] Wall Art.
@@ -49,7 +60,7 @@
 - [ ] Foreground occlusion.
 - [ ] Prompt to effect parameters.
 
-## v0.5 - Distribution
+## v0.6 - Distribution
 
 - [ ] Signed development package.
 - [x] Add CEP prerequisite diagnostics.
