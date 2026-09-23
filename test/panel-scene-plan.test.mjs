@@ -49,6 +49,7 @@ test("buildScenePlan produces a schema-valid plan", () => {
       tasks: [{
         type: "point-track",
         engine: "ae-native",
+        action: "motion-tracker",
         anchorTime: 1,
         anchorFrame: 24,
         confidence: 0.82,
@@ -112,6 +113,11 @@ test("buildScenePlan carries a normalized target into its task", () => {
     width: 0.5,
     height: 0.6,
   });
+  assert.equal(plan.shots[0].tasks[0].action, "object-matte");
+  assert.deepEqual(plan.shots[0].tasks[0].fallbacks.map((fallback) => fallback.action), [
+    "roto-brush",
+    "sam-segmentation",
+  ]);
   assert.equal(validateScenePlan(plan).valid, true);
 });
 
@@ -119,4 +125,11 @@ test("buildScenePlan rejects targets outside the source frame", () => {
   const input = analysis();
   input.shots[0].target = { kind: "box", x: 0.8, y: 0.1, width: 0.3, height: 0.2 };
   assert.throws(() => buildScenePlan(input, "roto", "efficient"), /inside the source frame/);
+});
+
+test("buildScenePlan requires a target for mask routing", () => {
+  assert.throws(() => buildScenePlan(analysis(), "roto", "efficient"), /require a point or box target/);
+  const input = analysis();
+  input.shots[0].target = { kind: "point", x: 0.5, y: 0.5 };
+  assert.throws(() => buildScenePlan(input, "static-mask", "efficient"), /require a box target/);
 });

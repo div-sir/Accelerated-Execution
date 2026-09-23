@@ -1,17 +1,15 @@
 (function (root, factory) {
-  var api = factory();
+  var router = root.AETaskRouter;
+  if (!router && typeof module === "object" && module.exports) router = require("./task-router.js");
+  var api = factory(router);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.AEScenePlan = api;
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function (router) {
   "use strict";
 
-  var TASK_TYPES = ["roto", "planar-track", "point-track", "camera-track", "static-mask"];
-
   function engineFor(taskType, mode) {
-    if (TASK_TYPES.indexOf(taskType) === -1) throw new Error("Unsupported task type: " + taskType);
-    if (mode === "native") return "ae-native";
-    if (taskType === "planar-track") return "mocha";
-    return "ae-native";
+    return router.routeFor(taskType, mode, taskType === "roto" ? { kind: "point" } :
+      (taskType === "static-mask" ? { kind: "box" } : null)).engine;
   }
 
   function clamp01(value) {
@@ -79,8 +77,6 @@
     if (!analysis || !analysis.source || !analysis.media || !Array.isArray(analysis.shots)) {
       throw new Error("Analysis result is incomplete.");
     }
-    var engine = engineFor(taskType, mode);
-
     return {
       version: "0.1",
       source: analysis.source,
@@ -103,14 +99,18 @@
         if (shot.selected.timeSeconds < startTime || shot.selected.timeSeconds >= endTime) {
           throw new Error("Selected anchor for shot " + (index + 1) + " falls outside the shot.");
         }
+        var target = shot.target ? normalizeTarget(shot.target) : null;
+        var route = router.routeFor(taskType, mode, target);
         var task = {
           type: taskType,
-          engine: engine,
+          engine: route.engine,
+          action: route.action,
           anchorTime: shot.selected.timeSeconds,
           confidence: clamp01(shot.selected.score)
         };
         if (Number.isInteger(shot.selected.sourceFrame)) task.anchorFrame = shot.selected.sourceFrame;
-        if (shot.target) task.target = normalizeTarget(shot.target);
+        if (target) task.target = target;
+        if (route.fallbacks.length) task.fallbacks = route.fallbacks;
         var result = {
           id: shot.id || "shot-" + String(index + 1).padStart(3, "0"),
           startTime: startTime,

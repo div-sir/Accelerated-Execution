@@ -89,3 +89,11 @@ a two-dimensional drag produces a box. Both use `normalized-source` coordinates 
 0–1 range so the plan remains independent of preview resolution and panel size. Changing the
 anchor candidate clears its target because a region selected on one decoded frame must not silently
 carry over to another.
+
+## Execution routing
+
+Each generated task has a primary `engine` and `action`. Optional fallbacks are ordered and carry
+an explicit condition: `unavailable`, `quality-failed`, or `semantic-ambiguity`. Roto boxes prefer
+AE Object Matte and fall back to Roto Brush; efficient and maximum modes may then use local SAM
+segmentation, while only maximum mode may add a vision-provider fallback. Native mode never emits
+AI fallbacks. A route describes intended execution and does not imply that its provider has run.

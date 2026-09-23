@@ -1,6 +1,18 @@
 const TASK_TYPES = new Set(["roto", "planar-track", "point-track", "camera-track", "static-mask"]);
 const ENGINES = new Set(["ae-native", "mocha", "local-ai", "vision"]);
 const TARGET_KINDS = new Set(["point", "box"]);
+const ACTIONS = new Set(["object-matte", "roto-brush", "static-mask", "mocha-planar-track", "motion-tracker", "camera-tracker", "sam-segmentation", "vision-segmentation"]);
+const FALLBACK_CONDITIONS = new Set(["unavailable", "quality-failed", "semantic-ambiguity"]);
+const ACTION_ENGINES = new Map([
+  ["object-matte", "ae-native"],
+  ["roto-brush", "ae-native"],
+  ["static-mask", "ae-native"],
+  ["mocha-planar-track", "mocha"],
+  ["motion-tracker", "ae-native"],
+  ["camera-tracker", "ae-native"],
+  ["sam-segmentation", "local-ai"],
+  ["vision-segmentation", "vision"],
+]);
 
 export function validateScenePlan(plan) {
   const errors = [];
@@ -72,6 +84,10 @@ export function validateScenePlan(plan) {
       }
       if (!TASK_TYPES.has(task.type)) fail(`${taskBase}.type`, "is not a supported task type");
       if (!ENGINES.has(task.engine)) fail(`${taskBase}.engine`, "is not a supported engine");
+      if (task.action !== undefined && !ACTIONS.has(task.action)) fail(`${taskBase}.action`, "is not a supported action");
+      if (ACTIONS.has(task.action) && ACTION_ENGINES.get(task.action) !== task.engine) {
+        fail(`${taskBase}.action`, "does not match its engine");
+      }
       if (!(typeof task.anchorTime === "number" && task.anchorTime >= shot.startTime && task.anchorTime < shot.endTime)) {
         fail(`${taskBase}.anchorTime`, "must fall inside its shot");
       }
@@ -115,6 +131,33 @@ export function validateScenePlan(plan) {
               fail(`${taskBase}.target.height`, "must stay inside the source frame");
             }
           }
+        }
+      }
+      if (task.type === "roto" && task.target === undefined) {
+        fail(`${taskBase}.target`, "is required for a roto task");
+      }
+      if (task.type === "static-mask" && (!task.target || task.target.kind !== "box")) {
+        fail(`${taskBase}.target`, "must be a box for a static-mask task");
+      }
+      if (task.fallbacks !== undefined) {
+        if (!Array.isArray(task.fallbacks)) {
+          fail(`${taskBase}.fallbacks`, "must be an array");
+        } else {
+          task.fallbacks.forEach((fallback, fallbackIndex) => {
+            const fallbackBase = `${taskBase}.fallbacks[${fallbackIndex}]`;
+            if (!fallback || typeof fallback !== "object" || Array.isArray(fallback)) {
+              fail(fallbackBase, "must be an object");
+              return;
+            }
+            if (!ENGINES.has(fallback.engine)) fail(`${fallbackBase}.engine`, "is not a supported engine");
+            if (!ACTIONS.has(fallback.action)) fail(`${fallbackBase}.action`, "is not a supported action");
+            if (ACTIONS.has(fallback.action) && ACTION_ENGINES.get(fallback.action) !== fallback.engine) {
+              fail(`${fallbackBase}.action`, "does not match its engine");
+            }
+            if (!FALLBACK_CONDITIONS.has(fallback.condition)) {
+              fail(`${fallbackBase}.condition`, "is not a supported fallback condition");
+            }
+          });
         }
       }
     });

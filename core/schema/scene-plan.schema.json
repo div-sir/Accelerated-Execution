@@ -63,9 +63,23 @@
               "properties": {
                 "type": { "enum": ["roto", "planar-track", "point-track", "camera-track", "static-mask"] },
                 "engine": { "enum": ["ae-native", "mocha", "local-ai", "vision"] },
+                "action": { "enum": ["object-matte", "roto-brush", "static-mask", "mocha-planar-track", "motion-tracker", "camera-tracker", "sam-segmentation", "vision-segmentation"] },
                 "anchorTime": { "type": "number", "minimum": 0 },
                 "anchorFrame": { "type": "integer", "minimum": 0 },
                 "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "fallbacks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["engine", "action", "condition"],
+                    "properties": {
+                      "engine": { "enum": ["ae-native", "mocha", "local-ai", "vision"] },
+                      "action": { "enum": ["object-matte", "roto-brush", "static-mask", "mocha-planar-track", "motion-tracker", "camera-tracker", "sam-segmentation", "vision-segmentation"] },
+                      "condition": { "enum": ["unavailable", "quality-failed", "semantic-ambiguity"] }
+                    }
+                  }
+                },
                 "target": {
                   "oneOf": [
                     {
@@ -94,7 +108,20 @@
                     }
                   ]
                 }
-              }
+              },
+              "allOf": [
+                {
+                  "if": { "properties": { "type": { "const": "roto" } }, "required": ["type"] },
+                  "then": { "required": ["target"] }
+                },
+                {
+                  "if": { "properties": { "type": { "const": "static-mask" } }, "required": ["type"] },
+                  "then": {
+                    "required": ["target"],
+                    "properties": { "target": { "properties": { "kind": { "const": "box" } } } }
+                  }
+                }
+              ]
             }
           }
         }

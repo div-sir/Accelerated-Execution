@@ -186,6 +186,21 @@
       }
       item.appendChild(targetControls);
 
+      var routeStatus = document.createElement("div");
+      routeStatus.className = "route-status";
+      try {
+        var route = AETaskRouter.routeFor(
+          document.getElementById("task").value,
+          document.getElementById("mode").value,
+          shot.target || null
+        );
+        routeStatus.textContent = "Route: " + route.engine + " / " + route.action +
+          (route.fallbacks.length ? " · " + route.fallbacks.length + " fallback(s)" : "");
+      } catch (routeError) {
+        routeStatus.textContent = "Route pending: " + routeError.message;
+      }
+      item.appendChild(routeStatus);
+
       var locate = document.createElement("button");
       locate.type = "button";
       locate.textContent = "Go to anchor in After Effects";
@@ -317,6 +332,12 @@
 
   exportButton.addEventListener("click", exportScenePlan);
   applyButton.addEventListener("click", applyScenePlan);
+  document.getElementById("task").addEventListener("change", function () {
+    if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);
+  });
+  document.getElementById("mode").addEventListener("change", function () {
+    if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);
+  });
   cancelButton.addEventListener("click", function () {
     if (!activeAnalysis) return;
     cancelButton.disabled = true;

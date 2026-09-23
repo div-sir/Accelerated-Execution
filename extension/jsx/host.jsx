@@ -190,6 +190,7 @@ function AE_applyScenePlan(encodedScenePlan) {
         shotId: String(shot.id || "shot-" + (shotIndex + 1)),
         taskType: String(task.type || "unknown"),
         engine: String(task.engine || "unknown"),
+        action: task.action ? String(task.action) : null,
         anchorTime: anchorTime,
         compTime: compTime,
         confidence: Number(task.confidence),
@@ -205,6 +206,7 @@ function AE_applyScenePlan(encodedScenePlan) {
     for (shotIndex = 0; shotIndex < planned.length; shotIndex += 1) {
       var entry = planned[shotIndex];
       var comment = markerPrefix + entry.shotId + " | " + entry.taskType + " | " + entry.engine;
+      if (entry.action) comment += " | " + entry.action;
       if (entry.targetKind) comment += " | target " + entry.targetKind;
       if (isFinite(entry.confidence)) comment += " | confidence " + entry.confidence.toFixed(3);
       var marker = new MarkerValue(comment);

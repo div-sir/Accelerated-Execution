@@ -12,6 +12,7 @@ const required = [
   "extension/js/main.js",
   "extension/js/scene-plan.js",
   "extension/js/sidecar.js",
+  "extension/js/task-router.js",
   "extension/jsx/host.jsx",
   "core/schema/scene-plan.schema.json",
   "sidecar/cli.mjs",

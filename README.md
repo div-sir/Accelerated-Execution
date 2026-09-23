@@ -50,6 +50,11 @@ old target. During development, keep the repository layout intact so the install
 `extension/` directory remains next to `sidecar/`. Set
 `AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
 
+The panel previews the selected task route before export or application. Roto boxes prefer AE
+Object Matte with Roto Brush as the native fallback. Efficient and maximum modes may add local
+segmentation after native quality failure; cloud vision is only represented in maximum mode. These
+are ordered execution contracts—the local and vision segmentation providers are not implemented yet.
+
 Validate a scene plan before handing it to the After Effects host bridge:
 
 ```bash
