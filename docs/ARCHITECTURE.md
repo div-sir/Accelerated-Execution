@@ -106,3 +106,6 @@ box becomes a rectangular mask in layer source coordinates. Hold-interpolated Ma
 activate it only over the visible portion of its shot. Re-execution removes only masks with the
 Accelerated Execution prefix, preserves user masks, and runs in one AE undo group. Shots entirely
 outside a trimmed layer are reported as skipped; time-remapped layers remain unsupported.
+Static-mask tasks carry bounded feather and expansion parameters that map to AE Mask Feather and
+Mask Expansion. Execution also reports suspicious normalized target coverage below 0.1% or above
+90% of the source frame. Coverage warnings are advisory and do not silently rewrite user input.

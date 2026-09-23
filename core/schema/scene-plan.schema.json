@@ -67,6 +67,15 @@
                 "anchorTime": { "type": "number", "minimum": 0 },
                 "anchorFrame": { "type": "integer", "minimum": 0 },
                 "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["featherPixels", "expansionPixels"],
+                  "properties": {
+                    "featherPixels": { "type": "number", "minimum": 0, "maximum": 500 },
+                    "expansionPixels": { "type": "number", "minimum": -500, "maximum": 500 }
+                  }
+                },
                 "fallbacks": {
                   "type": "array",
                   "items": {
@@ -117,7 +126,7 @@
                 {
                   "if": { "properties": { "type": { "const": "static-mask" } }, "required": ["type"] },
                   "then": {
-                    "required": ["target"],
+                    "required": ["target", "parameters"],
                     "properties": { "target": { "properties": { "kind": { "const": "box" } } } }
                   }
                 }

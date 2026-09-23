@@ -133,3 +133,21 @@ test("buildScenePlan requires a target for mask routing", () => {
   input.shots[0].target = { kind: "point", x: 0.5, y: 0.5 };
   assert.throws(() => buildScenePlan(input, "static-mask", "efficient"), /require a box target/);
 });
+
+test("buildScenePlan validates static-mask feather and expansion", () => {
+  const input = analysis();
+  input.shots[0].target = { kind: "box", x: 0.1, y: 0.1, width: 0.4, height: 0.4 };
+  const plan = buildScenePlan(input, "static-mask", "efficient", {
+    featherPixels: 18.5,
+    expansionPixels: -4,
+  });
+  assert.deepEqual(plan.shots[0].tasks[0].parameters, {
+    featherPixels: 18.5,
+    expansionPixels: -4,
+  });
+  assert.equal(validateScenePlan(plan).valid, true);
+  assert.throws(() => buildScenePlan(input, "static-mask", "efficient", {
+    featherPixels: 501,
+    expansionPixels: 0,
+  }), /feather must be between/);
+});

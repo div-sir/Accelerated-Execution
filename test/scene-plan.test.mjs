@@ -49,8 +49,9 @@ test("rejects a target box that extends outside the source frame", () => {
       startTime: 0,
       endTime: 4,
       tasks: [{
-        type: "roto",
+        type: "static-mask",
         engine: "ae-native",
+        action: "static-mask",
         anchorTime: 2,
         target: {
           kind: "box",
@@ -65,6 +66,7 @@ test("rejects a target box that extends outside the source frame", () => {
   });
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.path.endsWith("target.width")));
+  assert.ok(result.errors.some((error) => error.path.endsWith("parameters")));
 });
 
 test("reports cross-field and uniqueness errors", () => {

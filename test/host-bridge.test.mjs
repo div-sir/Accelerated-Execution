@@ -46,13 +46,19 @@ class MaskParade {
     const parade = this;
     const shape = new KeyframedProperty();
     const opacity = new KeyframedProperty();
+    const feather = new KeyframedProperty();
+    const expansion = new KeyframedProperty();
     return {
       name,
       shape,
       opacity,
+      feather,
+      expansion,
       property(propertyName) {
         if (propertyName === "ADBE Mask Shape") return shape;
         if (propertyName === "ADBE Mask Opacity") return opacity;
+        if (propertyName === "ADBE Mask Feather") return feather;
+        if (propertyName === "ADBE Mask Offset") return expansion;
         return null;
       },
       remove() {
@@ -172,6 +178,7 @@ function staticMaskPlan() {
           width: 0.5,
           height: 0.4,
         },
+        parameters: { featherPixels: 12.5, expansionPixels: -3 },
       }],
     }],
   };
@@ -239,6 +246,7 @@ test("AE_executeStaticMasks replaces managed masks and preserves user masks", ()
     replaced: 1,
     skipped: 0,
     preservedUserMasks: 1,
+    warnings: [],
   });
   assert.deepEqual(host.masks.items.map((mask) => mask.name), [
     "User Mask",
@@ -246,6 +254,8 @@ test("AE_executeStaticMasks replaces managed masks and preserves user masks", ()
   ]);
   const created = host.masks.items[1];
   assert.equal(created.maskMode, "add");
+  assert.deepEqual(Array.from(created.feather.value), [12.5, 12.5]);
+  assert.equal(created.expansion.value, -3);
   const vertices = JSON.parse(JSON.stringify(created.shape.value.vertices)).map((vertex) => {
     return vertex.map((coordinate) => Number(coordinate.toFixed(6)));
   });
@@ -324,4 +334,14 @@ test("AE_executeStaticMasks rejects a locked layer before mutation", () => {
   assert.match(result.error, /Unlock the selected footage layer/);
   assert.equal(host.masks.numProperties, 0);
   assert.deepEqual(host.undo, []);
+});
+
+test("AE_executeStaticMasks reports suspicious target coverage", () => {
+  const host = createHost();
+  const value = staticMaskPlan();
+  value.shots[0].tasks[0].target.width = 0.02;
+  value.shots[0].tasks[0].target.height = 0.02;
+  const result = executeStaticMasks(host, value);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, ["shot-001 covers less than 0.1% of the source frame."]);
 });

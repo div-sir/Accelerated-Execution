@@ -95,6 +95,19 @@ export function validateScenePlan(plan) {
           (typeof task.confidence !== "number" || task.confidence < 0 || task.confidence > 1)) {
         fail(`${taskBase}.confidence`, "must be between 0 and 1");
       }
+      if (task.parameters !== undefined) {
+        const parameters = task.parameters;
+        if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) {
+          fail(`${taskBase}.parameters`, "must be an object");
+        } else {
+          if (!(typeof parameters.featherPixels === "number" && parameters.featherPixels >= 0 && parameters.featherPixels <= 500)) {
+            fail(`${taskBase}.parameters.featherPixels`, "must be between 0 and 500");
+          }
+          if (!(typeof parameters.expansionPixels === "number" && parameters.expansionPixels >= -500 && parameters.expansionPixels <= 500)) {
+            fail(`${taskBase}.parameters.expansionPixels`, "must be between -500 and 500");
+          }
+        }
+      }
       if (task.anchorFrame !== undefined) {
         if (!Number.isInteger(task.anchorFrame) || task.anchorFrame < 0) {
           fail(`${taskBase}.anchorFrame`, "must be a non-negative integer");
@@ -138,6 +151,9 @@ export function validateScenePlan(plan) {
       }
       if (task.type === "static-mask" && (!task.target || task.target.kind !== "box")) {
         fail(`${taskBase}.target`, "must be a box for a static-mask task");
+      }
+      if (task.type === "static-mask" && task.parameters === undefined) {
+        fail(`${taskBase}.parameters`, "is required for a static-mask task");
       }
       if (task.fallbacks !== undefined) {
         if (!Array.isArray(task.fallbacks)) {

@@ -73,7 +73,23 @@
     });
   }
 
-  function buildScenePlan(analysis, taskType, mode) {
+  function normalizeStaticMaskParameters(options) {
+    options = options || {};
+    var featherPixels = Number(options.featherPixels === undefined ? 0 : options.featherPixels);
+    var expansionPixels = Number(options.expansionPixels === undefined ? 0 : options.expansionPixels);
+    if (!isFinite(featherPixels) || featherPixels < 0 || featherPixels > 500) {
+      throw new Error("Mask feather must be between 0 and 500 pixels.");
+    }
+    if (!isFinite(expansionPixels) || expansionPixels < -500 || expansionPixels > 500) {
+      throw new Error("Mask expansion must be between -500 and 500 pixels.");
+    }
+    return {
+      featherPixels: rounded(featherPixels),
+      expansionPixels: rounded(expansionPixels)
+    };
+  }
+
+  function buildScenePlan(analysis, taskType, mode, taskOptions) {
     if (!analysis || !analysis.source || !analysis.media || !Array.isArray(analysis.shots)) {
       throw new Error("Analysis result is incomplete.");
     }
@@ -111,6 +127,7 @@
         if (Number.isInteger(shot.selected.sourceFrame)) task.anchorFrame = shot.selected.sourceFrame;
         if (target) task.target = target;
         if (route.fallbacks.length) task.fallbacks = route.fallbacks;
+        if (taskType === "static-mask") task.parameters = normalizeStaticMaskParameters(taskOptions);
         var result = {
           id: shot.id || "shot-" + String(index + 1).padStart(3, "0"),
           startTime: startTime,
@@ -129,6 +146,7 @@
   return {
     buildScenePlan: buildScenePlan,
     engineFor: engineFor,
+    normalizeStaticMaskParameters: normalizeStaticMaskParameters,
     normalizeTarget: normalizeTarget,
     targetFromDrag: targetFromDrag
   };

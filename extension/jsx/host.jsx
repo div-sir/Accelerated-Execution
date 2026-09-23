@@ -275,6 +275,7 @@ function AE_executeStaticMasks(encodedScenePlan) {
 
     var planned = [];
     var skipped = 0;
+    var warnings = [];
     var tolerance = Math.max(0.000001, item.frameDuration / 4);
     var shotIndex;
     for (shotIndex = 0; shotIndex < plan.shots.length; shotIndex += 1) {
@@ -289,6 +290,13 @@ function AE_executeStaticMasks(encodedScenePlan) {
       var target = task.target;
       if (!target || target.kind !== "box" || target.coordinateSpace !== "normalized-source") {
         return AE_json({ ok: false, error: "Static-mask tasks require a normalized source box." });
+      }
+      var parameters = task.parameters;
+      var featherPixels = parameters ? Number(parameters.featherPixels) : NaN;
+      var expansionPixels = parameters ? Number(parameters.expansionPixels) : NaN;
+      if (!isFinite(featherPixels) || featherPixels < 0 || featherPixels > 500 ||
+          !isFinite(expansionPixels) || expansionPixels < -500 || expansionPixels > 500) {
+        return AE_json({ ok: false, error: "Static-mask feather or expansion parameters are invalid." });
       }
       var x = Number(target.x);
       var y = Number(target.y);
@@ -314,10 +322,15 @@ function AE_executeStaticMasks(encodedScenePlan) {
       }
       var right = Math.min(1, x + width);
       var bottom = Math.min(1, y + height);
+      var coverage = (right - x) * (bottom - y);
+      if (coverage < 0.001) warnings.push(String(shot.id) + " covers less than 0.1% of the source frame.");
+      if (coverage > 0.9) warnings.push(String(shot.id) + " covers more than 90% of the source frame.");
       planned.push({
         shotId: String(shot.id || "shot-" + (shotIndex + 1)),
         startTime: visibleStart,
         endTime: visibleEnd,
+        featherPixels: featherPixels,
+        expansionPixels: expansionPixels,
         vertices: [
           [x * layer.source.width, y * layer.source.height],
           [right * layer.source.width, y * layer.source.height],
@@ -358,6 +371,8 @@ function AE_executeStaticMasks(encodedScenePlan) {
       shape.outTangents = [[0, 0], [0, 0], [0, 0], [0, 0]];
       shape.closed = true;
       mask.property("ADBE Mask Shape").setValue(shape);
+      mask.property("ADBE Mask Feather").setValue([entry.featherPixels, entry.featherPixels]);
+      mask.property("ADBE Mask Offset").setValue(entry.expansionPixels);
 
       var opacity = mask.property("ADBE Mask Opacity");
       if (entry.startTime - layer.inPoint > tolerance) opacity.setValueAtTime(layer.inPoint, 0);
@@ -377,7 +392,8 @@ function AE_executeStaticMasks(encodedScenePlan) {
       created: planned.length,
       replaced: managed.length,
       skipped: skipped,
-      preservedUserMasks: userMaskCount
+      preservedUserMasks: userMaskCount,
+      warnings: warnings
     });
   } catch (error) {
     if (undoStarted) {

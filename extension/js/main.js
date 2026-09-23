@@ -38,6 +38,19 @@
     return message;
   }
 
+  function taskOptions() {
+    var feather = document.getElementById("mask-feather").value;
+    var expansion = document.getElementById("mask-expansion").value;
+    return {
+      featherPixels: feather === "" ? NaN : Number(feather),
+      expansionPixels: expansion === "" ? NaN : Number(expansion)
+    };
+  }
+
+  function updateTaskControls() {
+    document.getElementById("mask-settings").hidden = document.getElementById("task").value !== "static-mask";
+  }
+
   function drawTargetOverlay(container, target, draft) {
     var overlay = document.createElement("span");
     overlay.className = "target-overlay " + target.kind + (draft ? " draft" : "");
@@ -232,7 +245,7 @@
     try {
       var taskType = document.getElementById("task").value;
       var mode = document.getElementById("mode").value;
-      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode);
+      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode, taskOptions());
       var path = require("path");
       var output = path.join(currentOutputDirectory, "scene-plan.json");
       require("fs").writeFileSync(output, JSON.stringify(plan, null, 2) + "\n", "utf8");
@@ -247,7 +260,7 @@
     try {
       var taskType = document.getElementById("task").value;
       var mode = document.getElementById("mode").value;
-      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode);
+      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode, taskOptions());
       var encodedPlan = encodeURIComponent(JSON.stringify(plan));
       applyButton.disabled = true;
       status.textContent = "Applying scene-plan markers in After Effects…";
@@ -274,19 +287,23 @@
     try {
       var taskType = document.getElementById("task").value;
       var mode = document.getElementById("mode").value;
-      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode);
+      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode, taskOptions());
       var encodedPlan = encodeURIComponent(JSON.stringify(plan));
       executeButton.disabled = true;
       status.textContent = "Executing static masks in After Effects…";
       evalHost("AE_executeStaticMasks(\"" + encodedPlan + "\")", function (raw) {
         try {
           var result = JSON.parse(raw);
-          status.textContent = result.ok
-            ? "Created " + result.created + " static mask(s) on " + result.layerName +
+          if (result.ok) {
+            var message = "Created " + result.created + " static mask(s) on " + result.layerName +
               (result.replaced ? "; replaced " + result.replaced + " managed mask(s)" : "") +
               (result.skipped ? "; skipped " + result.skipped + " out-of-range shot(s)" : "") +
-              (result.preservedUserMasks ? "; preserved " + result.preservedUserMasks + " user mask(s)" : "") + "."
-            : result.error;
+              (result.preservedUserMasks ? "; preserved " + result.preservedUserMasks + " user mask(s)" : "") + ".";
+            if (result.warnings && result.warnings.length) message += "\nWarnings:\n- " + result.warnings.join("\n- ");
+            status.textContent = message;
+          } else {
+            status.textContent = result.error;
+          }
         } catch (error) {
           status.textContent = raw;
         }
@@ -367,6 +384,7 @@
   applyButton.addEventListener("click", applyScenePlan);
   executeButton.addEventListener("click", executeStaticMasks);
   document.getElementById("task").addEventListener("change", function () {
+    updateTaskControls();
     if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);
   });
   document.getElementById("mode").addEventListener("change", function () {
@@ -378,4 +396,5 @@
     status.textContent = "Cancelling analysis…";
     activeAnalysis.cancel("Analysis cancelled by user.");
   });
+  updateTaskControls();
 })();

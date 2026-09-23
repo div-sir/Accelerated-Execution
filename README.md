@@ -58,7 +58,9 @@ are ordered execution contracts—the local and vision segmentation providers ar
 For a fully local executable path, select **Static mask**, draw a box target for every shot, and use
 **Execute static masks in AE**. The host creates rectangular masks in source-pixel coordinates and
 uses hold opacity keys to limit each mask to its shot. Re-running replaces only managed masks,
-preserves user-authored masks, and can be reverted with one After Effects undo operation.
+preserves user-authored masks, and can be reverted with one After Effects undo operation. Feather
+and expansion controls are stored in the scene plan and applied as native mask properties. Very
+small targets (below 0.1% coverage) and near-full-frame targets (above 90%) produce warnings.
 
 Validate a scene plan before handing it to the After Effects host bridge:
 
