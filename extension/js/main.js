@@ -3,6 +3,7 @@
   var comp = document.getElementById("comp");
   var analyzeButton = document.getElementById("analyze");
   var cancelButton = document.getElementById("cancel");
+  var applyButton = document.getElementById("apply");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
@@ -117,6 +118,33 @@
     }
   }
 
+  function applyScenePlan() {
+    if (!currentAnalysis) return;
+    try {
+      var taskType = document.getElementById("task").value;
+      var mode = document.getElementById("mode").value;
+      var plan = AEScenePlan.buildScenePlan(currentAnalysis, taskType, mode);
+      var encodedPlan = encodeURIComponent(JSON.stringify(plan));
+      applyButton.disabled = true;
+      status.textContent = "Applying scene-plan markers in After Effects…";
+      evalHost("AE_applyScenePlan(\"" + encodedPlan + "\")", function (raw) {
+        applyButton.disabled = false;
+        try {
+          var result = JSON.parse(raw);
+          status.textContent = result.ok
+            ? "Applied " + result.added + " anchor marker(s) to " + result.layerName +
+              (result.replaced ? "; replaced " + result.replaced + " previous marker(s)." : ".")
+            : result.error;
+        } catch (error) {
+          status.textContent = raw;
+        }
+      });
+    } catch (error) {
+      applyButton.disabled = false;
+      status.textContent = "Apply failed: " + error.message;
+    }
+  }
+
   function startLocalAnalysis(footage) {
     if (typeof require !== "function" || typeof process === "undefined") {
       throw new Error("CEP Node.js integration is unavailable. Check the extension manifest.");
@@ -126,6 +154,7 @@
     if (!extensionPath) throw new Error("Could not locate the extension directory.");
 
     results.textContent = "";
+    applyButton.disabled = true;
     exportButton.disabled = true;
     activeAnalysis = AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
       onProgress: function (event) { status.textContent = stageMessage(event); },
@@ -133,6 +162,7 @@
         activeAnalysis = null;
         analyzeButton.disabled = false;
         cancelButton.disabled = true;
+        applyButton.disabled = false;
         exportButton.disabled = false;
         currentAnalysis = analysis;
         currentOutputDirectory = outputDirectory;
@@ -180,6 +210,7 @@
   });
 
   exportButton.addEventListener("click", exportScenePlan);
+  applyButton.addEventListener("click", applyScenePlan);
   cancelButton.addEventListener("click", function () {
     if (!activeAnalysis) return;
     cancelButton.disabled = true;

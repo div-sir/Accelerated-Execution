@@ -76,4 +76,8 @@ analysis data plus local JPEG previews to a temporary output directory. Users se
 anchor per shot; the panel converts those selections into a validated scene plan and can move the
 active After Effects composition to an anchor for visual confirmation. Anchor navigation maps
 source frames through the selected footage layer's start time and stretch; trimmed-out and
-time-remapped anchors are rejected rather than navigating to an incorrect composition time.
+time-remapped anchors are rejected rather than navigating to an incorrect composition time. The
+panel can also apply the plan as managed layer markers. Application validates every anchor before
+opening a single AE undo group, preserves user-authored markers, and replaces only markers carrying
+the Accelerated Execution prefix. These markers stage later tracking and masking execution; they do
+not claim that the routed task has already run.

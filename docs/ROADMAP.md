@@ -20,6 +20,7 @@
 - [x] Use timestamp-first anchors for CFR and VFR footage.
 - [x] Bind scene plans and AE navigation to source identity.
 - [x] Run real FFmpeg CFR/VFR fixtures in CI.
+- [x] Apply scene-plan anchors as safe, replaceable AE layer markers.
 
 ## v0.2 - Smart Mask
 
