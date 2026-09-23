@@ -31,7 +31,7 @@
       cuts: "Detecting scene cuts…",
       candidates: "Scoring candidate frames…",
       previews: "Writing selected previews…",
-      complete: "Analysis complete."
+      complete: "Preparation complete."
     };
     var message = messages[event.stage] || "Analyzing…";
     if (event.total) message += " " + event.completed + "/" + event.total;
@@ -337,14 +337,24 @@
         exportButton.disabled = false;
         currentAnalysis = analysis;
         currentOutputDirectory = outputDirectory;
-        status.textContent = "Analyzed " + analysis.shots.length + " shot(s). Results: " + outputDirectory;
+        try {
+          var preparation = AEPreparation.buildPreparationManifest(analysis);
+          var preparationPath = require("path").join(outputDirectory, "preparation.json");
+          require("fs").writeFileSync(preparationPath, JSON.stringify(preparation, null, 2) + "\n", "utf8");
+          var summary = AEPreparation.preparationSummary(preparation);
+          status.textContent = "Prepared " + summary.frames + " working frame(s) across " + summary.shots +
+            " shot(s)" + (summary.masks ? " and " + summary.masks + " mask(s)" : "") +
+            ". No effects were applied.\nPreparation: " + preparationPath;
+        } catch (preparationError) {
+          status.textContent = "Preparation finished, but the manifest could not be written: " + preparationError.message;
+        }
         renderResults(analysis, outputDirectory);
       },
       onError: function (error) {
         activeAnalysis = null;
         analyzeButton.disabled = false;
         cancelButton.disabled = true;
-        status.textContent = "Analysis failed: " + error.message;
+        status.textContent = "Preparation failed: " + error.message;
       }
     });
     cancelButton.disabled = false;
@@ -393,8 +403,8 @@
   cancelButton.addEventListener("click", function () {
     if (!activeAnalysis) return;
     cancelButton.disabled = true;
-    status.textContent = "Cancelling analysis…";
-    activeAnalysis.cancel("Analysis cancelled by user.");
+    status.textContent = "Cancelling preparation…";
+    activeAnalysis.cancel("Preparation cancelled by user.");
   });
   updateTaskControls();
 })();
