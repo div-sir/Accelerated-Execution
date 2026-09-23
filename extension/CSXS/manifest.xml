@@ -17,8 +17,8 @@
     <Extension Id="com.milifix.acceleratedexecution.panel">
       <DispatchInfo>
         <Resources>
-          <MainPath>../index.html</MainPath>
-          <ScriptPath>../jsx/host.jsx</ScriptPath>
+          <MainPath>./index.html</MainPath>
+          <ScriptPath>./jsx/host.jsx</ScriptPath>
           <CEFCommandLine>
             <Parameter>--enable-nodejs</Parameter>
             <Parameter>--mixed-context</Parameter>

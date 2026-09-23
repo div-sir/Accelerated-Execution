@@ -68,3 +68,5 @@ npm run cep:package
 ```
 
 The installer refuses to replace an existing directory or a symlink owned by another checkout.
+Development installs expose the CEP Chromium debugger on localhost port 8088; `.debug` is excluded
+from packaged output.

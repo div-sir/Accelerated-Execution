@@ -124,7 +124,10 @@ async function packageExtension() {
   }
   await fs.rm(packageDirectory, { recursive: true, force: true });
   await fs.mkdir(packageDirectory, { recursive: true });
-  await fs.cp(extensionSource, packageDirectory, { recursive: true });
+  await fs.cp(extensionSource, packageDirectory, {
+    recursive: true,
+    filter: (source) => path.basename(source) !== ".debug",
+  });
   await fs.cp(path.join(repoRoot, "sidecar"), path.join(packageDirectory, "sidecar"), { recursive: true });
   await fs.cp(path.join(repoRoot, "core"), path.join(packageDirectory, "core"), { recursive: true });
   await fs.copyFile(path.join(repoRoot, "README.md"), path.join(packageDirectory, "README.md"));
