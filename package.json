@@ -1,0 +1,12 @@
+{
+  "name": "accelerated-execution",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-assisted workflow acceleration for Adobe After Effects.",
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
