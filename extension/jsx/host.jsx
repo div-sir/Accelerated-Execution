@@ -276,6 +276,7 @@ function AE_executeStaticMasks(encodedScenePlan) {
     var planned = [];
     var skipped = 0;
     var warnings = [];
+    var shotResults = [];
     var tolerance = Math.max(0.000001, item.frameDuration / 4);
     var shotIndex;
     for (shotIndex = 0; shotIndex < plan.shots.length; shotIndex += 1) {
@@ -306,6 +307,13 @@ function AE_executeStaticMasks(encodedScenePlan) {
           x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1.000001 || y + height > 1.000001) {
         return AE_json({ ok: false, error: "Static-mask target bounds are invalid." });
       }
+      var shotId = String(shot.id || "shot-" + (shotIndex + 1));
+      var right = Math.min(1, x + width);
+      var bottom = Math.min(1, y + height);
+      var coverage = Math.round((right - x) * (bottom - y) * 1000000) / 1000000;
+      var qualityMessage = null;
+      if (coverage < 0.001) qualityMessage = shotId + " covers less than 0.1% of the source frame.";
+      if (coverage > 0.9) qualityMessage = shotId + " covers more than 90% of the source frame.";
       var sourceStart = Number(shot.startTime);
       var sourceEnd = Number(shot.endTime);
       if (!isFinite(sourceStart) || !isFinite(sourceEnd) || sourceStart < 0 ||
@@ -318,15 +326,30 @@ function AE_executeStaticMasks(encodedScenePlan) {
       var visibleEnd = Math.min(layer.outPoint, Math.max(mappedStart, mappedEnd));
       if (visibleEnd - visibleStart <= tolerance) {
         skipped += 1;
+        shotResults.push({
+          id: shotId,
+          status: "skipped",
+          action: "static-mask",
+          coverage: coverage,
+          message: "Shot does not overlap the selected layer's visible range.",
+          recommendation: "adjust-layer-range"
+        });
         continue;
       }
-      var right = Math.min(1, x + width);
-      var bottom = Math.min(1, y + height);
-      var coverage = (right - x) * (bottom - y);
-      if (coverage < 0.001) warnings.push(String(shot.id) + " covers less than 0.1% of the source frame.");
-      if (coverage > 0.9) warnings.push(String(shot.id) + " covers more than 90% of the source frame.");
+      if (qualityMessage) warnings.push(qualityMessage);
+      var shotResult = {
+        id: shotId,
+        status: qualityMessage ? "warning" : "completed",
+        action: "static-mask",
+        coverage: coverage
+      };
+      if (qualityMessage) {
+        shotResult.message = qualityMessage;
+        shotResult.recommendation = "review-target";
+      }
+      shotResults.push(shotResult);
       planned.push({
-        shotId: String(shot.id || "shot-" + (shotIndex + 1)),
+        shotId: shotId,
         startTime: visibleStart,
         endTime: visibleEnd,
         featherPixels: featherPixels,
@@ -393,7 +416,8 @@ function AE_executeStaticMasks(encodedScenePlan) {
       replaced: managed.length,
       skipped: skipped,
       preservedUserMasks: userMaskCount,
-      warnings: warnings
+      warnings: warnings,
+      shots: shotResults
     });
   } catch (error) {
     if (undoStarted) {

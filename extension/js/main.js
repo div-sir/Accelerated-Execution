@@ -300,6 +300,14 @@
               (result.skipped ? "; skipped " + result.skipped + " out-of-range shot(s)" : "") +
               (result.preservedUserMasks ? "; preserved " + result.preservedUserMasks + " user mask(s)" : "") + ".";
             if (result.warnings && result.warnings.length) message += "\nWarnings:\n- " + result.warnings.join("\n- ");
+            try {
+              var report = AEExecutionReport.buildExecutionReport(plan, result);
+              var reportPath = require("path").join(currentOutputDirectory, "execution-report.json");
+              require("fs").writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+              message += "\nReport: " + reportPath;
+            } catch (reportError) {
+              message += "\nReport save failed: " + reportError.message;
+            }
             status.textContent = message;
           } else {
             status.textContent = result.error;

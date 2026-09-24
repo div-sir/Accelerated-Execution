@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { analyzeFootage, discoverFfmpeg, generateProxy } from "./ffmpeg.mjs";
+import { validateExecutionReport } from "./execution-report.mjs";
 import { validateScenePlan } from "./scene-plan.mjs";
 
 function usage() {
@@ -12,7 +13,8 @@ Usage:
   node sidecar/cli.mjs doctor
   node sidecar/cli.mjs analyze <video> [--output <directory>] [--threshold <0..1>] [--candidates <count>] [--events]
   node sidecar/cli.mjs proxy <video> --output <proxy.mp4> [--height <pixels>]
-  node sidecar/cli.mjs validate <scene-plan.json>`);
+  node sidecar/cli.mjs validate <scene-plan.json>
+  node sidecar/cli.mjs validate-report <execution-report.json>`);
 }
 
 function option(args, name, fallback) {
@@ -32,6 +34,14 @@ async function main() {
     if (!args[0]) throw new Error("Provide a scene-plan JSON file.");
     const plan = JSON.parse(await fs.readFile(args[0], "utf8"));
     const result = validateScenePlan(plan);
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = result.valid ? 0 : 1;
+    return;
+  }
+  if (command === "validate-report") {
+    if (!args[0]) throw new Error("Provide an execution-report JSON file.");
+    const report = JSON.parse(await fs.readFile(args[0], "utf8"));
+    const result = validateExecutionReport(report);
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = result.valid ? 0 : 1;
     return;

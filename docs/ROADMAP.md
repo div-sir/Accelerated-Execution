@@ -40,6 +40,7 @@
 - [x] Define task actions and ordered native/local/vision fallback routes.
 - [x] Execute box targets as time-gated native AE static masks.
 - [x] Add static-mask feather, expansion, and target-coverage preflight.
+- [x] Persist per-shot execution outcomes and retry recommendations.
 - [ ] Route people and objects to AE native matte tools when possible.
 - [x] Add local SAM-family fallback worker.\n- [x] Add model-agnostic localhost SAM provider adapter.
 - [x] Add matte quality checks.

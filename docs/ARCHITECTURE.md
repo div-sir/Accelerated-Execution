@@ -109,3 +109,12 @@ outside a trimmed layer are reported as skipped; time-remapped layers remain uns
 Static-mask tasks carry bounded feather and expansion parameters that map to AE Mask Feather and
 Mask Expansion. Execution also reports suspicious normalized target coverage below 0.1% or above
 90% of the source frame. Coverage warnings are advisory and do not silently rewrite user input.
+
+## Execution reports
+
+Successful host execution produces `execution-report.json` beside the analysis output. The report
+binds back to the scene-plan source identity and records the destination composition and layer,
+summary counts, and one durable outcome per shot. Supported statuses are `completed`, `warning`,
+`failed`, and `skipped`; recommendations include target review, layer-range adjustment, anchor retry,
+and advancing to the next fallback. Summary counts are validated against the shot outcomes so later
+retry orchestration does not depend on transient panel messages.

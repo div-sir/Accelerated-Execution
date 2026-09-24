@@ -70,11 +70,14 @@ uses hold opacity keys to limit each mask to its shot. Re-running replaces only 
 preserves user-authored masks, and can be reverted with one After Effects undo operation. Feather
 and expansion controls are stored in the scene plan and applied as native mask properties. Very
 small targets (below 0.1% coverage) and near-full-frame targets (above 90%) produce warnings.
+Every successful execution also writes `execution-report.json` with per-shot status, coverage, and
+recommended follow-up. This report is the handoff contract for future quality checks and retries.
 
 Validate a scene plan before handing it to the After Effects host bridge:
 
 ```bash
 node sidecar/cli.mjs validate ./scene-plan.json
+node sidecar/cli.mjs validate-report ./execution-report.json
 ```
 
 Run the repository checks and unit tests with `npm run check`.

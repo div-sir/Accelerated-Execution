@@ -247,6 +247,7 @@ test("AE_executeStaticMasks replaces managed masks and preserves user masks", ()
     skipped: 0,
     preservedUserMasks: 1,
     warnings: [],
+    shots: [{ id: "shot-001", status: "completed", action: "static-mask", coverage: 0.2 }],
   });
   assert.deepEqual(host.masks.items.map((mask) => mask.name), [
     "User Mask",
@@ -344,4 +345,12 @@ test("AE_executeStaticMasks reports suspicious target coverage", () => {
   const result = executeStaticMasks(host, value);
   assert.equal(result.ok, true);
   assert.deepEqual(result.warnings, ["shot-001 covers less than 0.1% of the source frame."]);
+  assert.deepEqual(result.shots, [{
+    id: "shot-001",
+    status: "warning",
+    action: "static-mask",
+    coverage: 0.0004,
+    message: "shot-001 covers less than 0.1% of the source frame.",
+    recommendation: "review-target",
+  }]);
 });

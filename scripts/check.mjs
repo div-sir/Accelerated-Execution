@@ -11,13 +11,16 @@ const required = [
   "extension/js/CSInterface.js",
   "extension/js/main.js",
   "extension/js/preparation.js",
+  "extension/js/execution-report.js",
   "extension/js/scene-plan.js",
   "extension/js/sidecar.js",
   "extension/js/task-router.js",
   "extension/jsx/host.jsx",
   "core/schema/scene-plan.schema.json",
+  "core/schema/execution-report.schema.json",
   "sidecar/cli.mjs",
   "sidecar/ffmpeg.mjs",
+  "sidecar/execution-report.mjs",
   "sidecar/keyframe-score.mjs",
   "sidecar/matte-quality.mjs",
   "sidecar/retry-plan.mjs",
@@ -35,7 +38,9 @@ if (missing.length) {
   process.exit(1);
 }
 
-JSON.parse(fs.readFileSync("core/schema/scene-plan.schema.json", "utf8"));
+for (const schema of ["core/schema/scene-plan.schema.json", "core/schema/execution-report.schema.json"]) {
+  JSON.parse(fs.readFileSync(schema, "utf8"));
+}
 
 const manifest = fs.readFileSync("extension/CSXS/manifest.xml", "utf8");
 for (const element of ["MainPath", "ScriptPath"]) {
