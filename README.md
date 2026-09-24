@@ -78,6 +78,7 @@ Validate a scene plan before handing it to the After Effects host bridge:
 ```bash
 node sidecar/cli.mjs validate ./scene-plan.json
 node sidecar/cli.mjs validate-report ./execution-report.json
+node sidecar/cli.mjs plan-retries ./execution-report.json ./scene-plan.json --output ./retry-plan.json
 ```
 
 Run the repository checks and unit tests with `npm run check`.

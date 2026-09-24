@@ -118,3 +118,8 @@ summary counts, and one durable outcome per shot. Supported statuses are `comple
 `failed`, and `skipped`; recommendations include target review, layer-range adjustment, anchor retry,
 and advancing to the next fallback. Summary counts are validated against the shot outcomes so later
 retry orchestration does not depend on transient panel messages.
+
+The retry planner joins a validated execution report back to its source scene plan. Completed shots
+are ignored. Failed outcomes with an available fallback become automatic jobs carrying a concrete
+engine, action, target, anchor, and time range; target or layer-range corrections remain explicit
+manual-review jobs. Source identity must match before any job is emitted.

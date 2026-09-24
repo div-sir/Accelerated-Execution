@@ -42,9 +42,12 @@
 - [x] Add static-mask feather, expansion, and target-coverage preflight.
 - [x] Persist per-shot execution outcomes and retry recommendations.
 - [ ] Route people and objects to AE native matte tools when possible.
-- [x] Add local SAM-family fallback worker.\n- [x] Add model-agnostic localhost SAM provider adapter.
+- [x] Add local SAM-family fallback worker.
+- [x] Add model-agnostic localhost SAM provider adapter.
 - [x] Add matte quality checks.
-- [x] Detect failed temporal spans and build retry plans.\n- [ ] Execute retry plans automatically.
+- [x] Detect failed temporal spans and build retry plans.
+- [x] Convert execution outcomes into automatic fallback and manual-review jobs.
+- [ ] Execute retry jobs automatically.
 
 ## v0.4 - Smart Track
 
