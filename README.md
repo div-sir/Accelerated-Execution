@@ -14,3 +14,102 @@ The project uses **After Effects as the execution engine** and keeps AI in a sma
 - Keep all AI providers replaceable.
 
 Development continues on feature branches until the MVP is usable.
+
+## Local analysis
+
+Requirements: Node.js 20+ plus `ffmpeg` and `ffprobe` on `PATH`. Override their locations with
+`AE_FFMPEG_PATH` and `AE_FFPROBE_PATH` when needed.
+
+```bash
+npm run doctor
+npm run proxy -- /path/to/footage.mp4 --output ./proxy.mp4 --height 720
+npm run analyze -- /path/to/footage.mp4 --output ./analysis
+```
+
+The analyzer detects scene cuts, samples three timestamps per shot, calculates deterministic local
+sharpness, stability, visibility, and trackability metrics, ranks the candidates, and writes
+`analysis.json` plus JPEG previews. Timestamps are canonical so variable-frame-rate footage is not
+forced onto an inaccurate average-frame-rate timeline. CFR inputs also receive source-frame labels.
+No footage leaves the machine.
+
+In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
+**Prepare selected footage**. This is the primary workflow. The panel detects shots, ranks candidate
+frames, automatically keeps the best preparation frame for each shot, writes `preparation.json`,
+and does not apply effects to the composition. Candidate review remains available, but it is optional.
+
+The preparation manifest is intentionally execution-neutral. It records ready frames and, when a
+local detector/segmenter has already produced them, ready masks. The normal workflow stops there.
+Execution controls live under an optional section for users who want to apply markers or masks.
+
+The panel launches the same local CLI, reports progress, and shows
+three ranked anchor candidates for every detected shot. Choose an anchor only when you want to
+override the automatic choice. Use **Go to anchor in After Effects** to move the active
+composition's playhead, then export a schema-valid
+`scene-plan.json` containing source identity, media timebase, and timestamp anchors. Navigation
+refuses to control a selected layer whose source path differs from the analyzed footage. A running
+analysis can be cancelled from the panel and is stopped automatically after 30 minutes. Cancelled,
+timed-out, and failed runs remove their panel-owned temporary output; completed results remain
+available for preview and scene-plan export. **Apply anchor markers in AE** writes the selected
+anchors to the analyzed footage layer in one undo group. Reapplying replaces only markers managed
+by Accelerated Execution and refuses to overwrite a user marker on the same frame. The markers are
+execution guides; tracking and masking remain explicit later steps. On the selected anchor preview,
+click to save a point target or drag to save a box target. Targets use normalized source-frame
+coordinates and are included in exported or applied scene plans. Choosing another anchor clears the
+old target. During development, keep the repository layout intact so the installed/symlinked
+`extension/` directory remains next to `sidecar/`. Set
+`AE_NODE_PATH`, `AE_FFMPEG_PATH`, or `AE_FFPROBE_PATH` when the executables are in custom locations.
+
+The panel previews the selected task route before export or application. Roto boxes prefer AE
+Object Matte with Roto Brush as the native fallback. Efficient and maximum modes may add local
+segmentation after native quality failure; cloud vision is only represented in maximum mode. Local
+SAM retries are executable through the bundled loopback worker; cloud vision remains a routing
+contract only.
+
+For a fully local executable path, select **Static mask**, draw a box target for every shot, and use
+**Execute static masks in AE**. The host creates rectangular masks in source-pixel coordinates and
+uses hold opacity keys to limit each mask to its shot. Re-running replaces only managed masks,
+preserves user-authored masks, and can be reverted with one After Effects undo operation. Feather
+and expansion controls are stored in the scene plan and applied as native mask properties. Very
+small targets (below 0.1% coverage) and near-full-frame targets (above 90%) produce warnings.
+Every successful execution also writes `execution-report.json` with per-shot status, coverage, and
+recommended follow-up. This report is the handoff contract for future quality checks and retries.
+
+Validate a scene plan before handing it to the After Effects host bridge:
+
+```bash
+node sidecar/cli.mjs validate ./scene-plan.json
+node sidecar/cli.mjs validate-report ./execution-report.json
+node sidecar/cli.mjs plan-retries ./execution-report.json ./scene-plan.json --output ./retry-plan.json
+node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-execution
+```
+
+When the retry output is stored under the current analysis directory, **Import retry mattes in AE**
+loads completed SAM masks as locked, managed guide layers. Re-importing replaces only prior
+Accelerated Execution matte layers and does not change the selected footage layer's Track Matte.
+
+Run the repository checks and unit tests with `npm run check`.
+
+## After Effects development install
+
+Install a development symlink into the current user's Adobe CEP extensions directory and inspect
+all runtime prerequisites:
+
+```bash
+npm run cep:install
+npm run cep:doctor
+```
+
+Unsigned development extensions require CEP PlayerDebugMode. If the doctor reports it disabled,
+enable it explicitly with `npm run cep:debug`, restart After Effects, then open the panel from
+**Window → Extensions (Legacy) → Accelerated Execution**. The debug command modifies the current
+user's installed Adobe CSXS preference domains only.
+
+Create a self-contained unsigned directory under `dist/` with:
+
+```bash
+npm run cep:package
+```
+
+The installer refuses to replace an existing directory or a symlink owned by another checkout.
+Development installs expose the CEP Chromium debugger on localhost port 8088; `.debug` is excluded
+from packaged output.
