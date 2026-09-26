@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
-import { analyzeFootage, probeMedia } from "../sidecar/ffmpeg.mjs";
+import { analyzeFootage, extractFrame, probeMedia } from "../sidecar/ffmpeg.mjs";
 import { validateScenePlan } from "../sidecar/scene-plan.mjs";
 
 const execute = promisify(execFile);
@@ -44,6 +44,13 @@ test("FFmpeg integration preserves CFR frames and treats VFR timestamps as canon
   assert.equal(cfr.frameRateMode, "cfr");
   assert.equal(cfr.frameCount, 24);
   assert.equal(cfr.averageFrameRate, 24);
+  const anchorFrame = path.join(directory, "anchor.png");
+  await extractFrame(cfrInput, 0.5, anchorFrame);
+  const { stdout: anchorProbe } = await execute("ffprobe", [
+    "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+    "-of", "csv=p=0:s=x", anchorFrame,
+  ]);
+  assert.equal(anchorProbe.trim(), "160x90");
 
   const vfr = await probeMedia(vfrInput);
   assert.equal(vfr.frameRateMode, "vfr");

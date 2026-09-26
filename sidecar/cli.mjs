@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { analyzeFootage, discoverFfmpeg, generateProxy } from "./ffmpeg.mjs";
 import { validateExecutionReport } from "./execution-report.mjs";
+import { executeRetryPlan } from "./retry-executor.mjs";
 import { buildExecutionRetryPlan } from "./retry-plan.mjs";
 import { validateScenePlan } from "./scene-plan.mjs";
 
@@ -16,7 +17,8 @@ Usage:
   node sidecar/cli.mjs proxy <video> --output <proxy.mp4> [--height <pixels>]
   node sidecar/cli.mjs validate <scene-plan.json>
   node sidecar/cli.mjs validate-report <execution-report.json>
-  node sidecar/cli.mjs plan-retries <execution-report.json> <scene-plan.json> [--output <retry-plan.json>]`);
+  node sidecar/cli.mjs plan-retries <execution-report.json> <scene-plan.json> [--output <retry-plan.json>]
+  node sidecar/cli.mjs execute-retries <retry-plan.json> [--output <directory>]`);
 }
 
 function option(args, name, fallback) {
@@ -61,6 +63,19 @@ async function main() {
     } else {
       console.log(JSON.stringify(retryPlan, null, 2));
     }
+    return;
+  }
+  if (command === "execute-retries") {
+    if (!args[0]) throw new Error("Provide a retry-plan JSON file.");
+    const retryPlanPath = path.resolve(args[0]);
+    const retryPlan = JSON.parse(await fs.readFile(retryPlanPath, "utf8"));
+    const outputDirectory = path.resolve(option(args, "--output", path.join(path.dirname(retryPlanPath), "retry-execution")));
+    const report = await executeRetryPlan(retryPlan, { outputDirectory });
+    const reportPath = path.join(outputDirectory, "retry-execution-report.json");
+    await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    console.log(`Executed ${report.summary.completed} retry job(s); ${report.summary.failed} failed; ${report.summary.skipped} skipped.`);
+    console.log(`Retry execution report: ${reportPath}`);
+    process.exitCode = report.summary.failed ? 1 : 0;
     return;
   }
   if (command === "proxy") {

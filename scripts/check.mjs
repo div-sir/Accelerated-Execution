@@ -24,6 +24,7 @@ const required = [
   "sidecar/keyframe-score.mjs",
   "sidecar/matte-quality.mjs",
   "sidecar/retry-plan.mjs",
+  "sidecar/retry-executor.mjs",
   "sidecar/providers/local-sam.mjs",
   "tools/local_sam_worker.py",
   "sidecar/scene-plan.mjs",

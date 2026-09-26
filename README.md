@@ -61,8 +61,9 @@ old target. During development, keep the repository layout intact so the install
 
 The panel previews the selected task route before export or application. Roto boxes prefer AE
 Object Matte with Roto Brush as the native fallback. Efficient and maximum modes may add local
-segmentation after native quality failure; cloud vision is only represented in maximum mode. These
-are ordered execution contracts—the local and vision segmentation providers are not implemented yet.
+segmentation after native quality failure; cloud vision is only represented in maximum mode. Local
+SAM retries are executable through the bundled loopback worker; cloud vision remains a routing
+contract only.
 
 For a fully local executable path, select **Static mask**, draw a box target for every shot, and use
 **Execute static masks in AE**. The host creates rectangular masks in source-pixel coordinates and
@@ -79,6 +80,7 @@ Validate a scene plan before handing it to the After Effects host bridge:
 node sidecar/cli.mjs validate ./scene-plan.json
 node sidecar/cli.mjs validate-report ./execution-report.json
 node sidecar/cli.mjs plan-retries ./execution-report.json ./scene-plan.json --output ./retry-plan.json
+node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-execution
 ```
 
 Run the repository checks and unit tests with `npm run check`.

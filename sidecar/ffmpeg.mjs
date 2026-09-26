@@ -147,6 +147,22 @@ export async function generateProxy(input, output, {
   return path.resolve(output);
 }
 
+export async function extractFrame(input, time, output, {
+  ffmpeg = process.env.AE_FFMPEG_PATH || "ffmpeg",
+  signal,
+} = {}) {
+  if (!(typeof time === "number" && Number.isFinite(time) && time >= 0)) {
+    throw new RangeError("Frame time must be a non-negative number.");
+  }
+  const outputPath = path.resolve(output);
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await run(ffmpeg, [
+    "-v", "error", "-y", "-ss", time.toFixed(6), "-i", input,
+    "-map", "0:v:0", "-frames:v", "1", outputPath,
+  ], { signal });
+  return outputPath;
+}
+
 export function buildCandidateTimes(duration, cuts, candidatesPerShot = 3) {
   const boundaries = [0, ...cuts.filter((time) => time > 0 && time < duration), duration];
   const candidates = [];

@@ -89,3 +89,14 @@ On Apple Silicon, the worker prefers PyTorch MPS when it is available. It uses C
 For local process isolation, set the same `AE_LOCAL_SAM_TOKEN` environment variable for the extension process and the worker. The adapter sends it as a Bearer token.
 
 The first segmentation request can take longer because the worker lazily downloads and loads the model.
+
+## Retry execution
+
+After generating `retry-plan.json`, run its automatic local SAM jobs with:
+
+```bash
+node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-execution
+```
+
+The executor revalidates the source fingerprint, extracts full-resolution anchor frames, runs jobs
+sequentially, and writes `retry-execution-report.json`. It never sends manual-review jobs to SAM.

@@ -123,3 +123,9 @@ The retry planner joins a validated execution report back to its source scene pl
 are ignored. Failed outcomes with an available fallback become automatic jobs carrying a concrete
 engine, action, target, anchor, and time range; target or layer-range corrections remain explicit
 manual-review jobs. Source identity must match before any job is emitted.
+
+The retry executor currently runs automatic `local-ai / sam-segmentation` jobs sequentially to
+bound model memory use. It verifies the current footage fingerprint, extracts a full-resolution PNG
+at each task's canonical anchor timestamp, sends the normalized target to the loopback SAM worker,
+and writes a durable per-job execution report. Manual-review jobs are skipped, unsupported providers
+are reported as failures, and a returned mask must exist inside its requested output directory.
