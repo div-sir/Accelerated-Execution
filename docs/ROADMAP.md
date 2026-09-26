@@ -24,7 +24,7 @@
 
 ## v0.2 - Smart Preparation
 
-- [x] Make prepare-only workflow the default.
+- [x] Make prepare-only workflow the default.\n- [x] Define Python as the CV/ML preparation layer.\n- [x] Add reusable preparation package layout.\n- [ ] Move frame metrics and detection orchestration into the Python worker.
 - [x] Automatically keep the highest-ranked working frame for every shot.
 - [x] Write a preparation manifest without modifying the AE composition.
 - [x] Move execution controls behind an optional section.
