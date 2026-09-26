@@ -5,6 +5,7 @@
   var cancelButton = document.getElementById("cancel");
   var applyButton = document.getElementById("apply");
   var executeButton = document.getElementById("execute");
+  var importMattesButton = document.getElementById("import-mattes");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
@@ -323,6 +324,49 @@
     }
   }
 
+  function importRetryMattes() {
+    if (!currentAnalysis || !currentOutputDirectory) return;
+    try {
+      var fs = require("fs");
+      var path = require("path");
+      var candidates = [
+        path.join(currentOutputDirectory, "retry-execution", "retry-execution-report.json"),
+        path.join(currentOutputDirectory, "retry-execution-report.json")
+      ];
+      var reportPath = null;
+      var candidateIndex;
+      for (candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+        if (fs.existsSync(candidates[candidateIndex])) {
+          reportPath = candidates[candidateIndex];
+          break;
+        }
+      }
+      if (!reportPath) {
+        status.textContent = "No retry execution report found. Run execute-retries with --output " +
+          path.join(currentOutputDirectory, "retry-execution") + ".";
+        return;
+      }
+      var report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+      importMattesButton.disabled = true;
+      status.textContent = "Importing managed retry matte layers in After Effects…";
+      evalHost("AE_importRetryMattes(\"" + encodeURIComponent(JSON.stringify(report)) + "\")", function (raw) {
+        importMattesButton.disabled = false;
+        try {
+          var result = JSON.parse(raw);
+          status.textContent = result.ok
+            ? "Imported " + result.created + " managed guide matte layer(s)" +
+              (result.replaced ? "; replaced " + result.replaced + " previous layer(s)." : ".")
+            : result.error;
+        } catch (error) {
+          status.textContent = raw;
+        }
+      });
+    } catch (error) {
+      importMattesButton.disabled = false;
+      status.textContent = "Retry matte import failed: " + error.message;
+    }
+  }
+
   function startLocalAnalysis(footage) {
     if (typeof require !== "function" || typeof process === "undefined") {
       throw new Error("CEP Node.js integration is unavailable. Check the extension manifest.");
@@ -334,6 +378,7 @@
     results.textContent = "";
     applyButton.disabled = true;
     executeButton.disabled = true;
+    importMattesButton.disabled = true;
     exportButton.disabled = true;
     activeAnalysis = AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
       onProgress: function (event) { status.textContent = stageMessage(event); },
@@ -343,6 +388,7 @@
         cancelButton.disabled = true;
         applyButton.disabled = false;
         exportButton.disabled = false;
+        importMattesButton.disabled = false;
         currentAnalysis = analysis;
         currentOutputDirectory = outputDirectory;
         try {
@@ -401,6 +447,7 @@
   exportButton.addEventListener("click", exportScenePlan);
   applyButton.addEventListener("click", applyScenePlan);
   executeButton.addEventListener("click", executeStaticMasks);
+  importMattesButton.addEventListener("click", importRetryMattes);
   document.getElementById("task").addEventListener("change", function () {
     updateTaskControls();
     if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);

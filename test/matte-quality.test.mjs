@@ -100,6 +100,7 @@ test("execution retry planner creates automatic fallback and manual-review jobs"
     createdAt: "2026-09-24T12:01:00.000Z",
   });
   assert.deepEqual(plan.summary, { automatic: 1, manualReview: 1, ignored: 1 });
+  assert.deepEqual(plan.media, { width: 1920, height: 1080, duration: 3, frameRateMode: "cfr" });
   assert.equal(plan.jobs[0].strategy, "fallback");
   assert.equal(plan.jobs[0].task.engine, "local-ai");
   assert.equal(plan.jobs[0].task.action, "sam-segmentation");

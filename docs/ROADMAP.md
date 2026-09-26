@@ -48,6 +48,7 @@
 - [x] Detect failed temporal spans and build retry plans.
 - [x] Convert execution outcomes into automatic fallback and manual-review jobs.
 - [x] Execute local SAM retry jobs from full-resolution anchors.
+- [x] Import completed SAM masks as managed AE guide matte layers.
 - [ ] Execute native AE and other provider retry jobs automatically.
 
 ## v0.4 - Smart Track

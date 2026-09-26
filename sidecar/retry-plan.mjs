@@ -125,6 +125,7 @@ export function buildExecutionRetryPlan(report, scenePlan, options = {}) {
     reportVersion: report.version,
     createdAt: options.createdAt || new Date().toISOString(),
     source: structuredClone(report.source),
+    media: structuredClone(scenePlan.media),
     destination: structuredClone(report.destination),
     summary: {
       automatic: jobs.filter((job) => job.automatic).length,

@@ -83,6 +83,10 @@ node sidecar/cli.mjs plan-retries ./execution-report.json ./scene-plan.json --ou
 node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-execution
 ```
 
+When the retry output is stored under the current analysis directory, **Import retry mattes in AE**
+loads completed SAM masks as locked, managed guide layers. Re-importing replaces only prior
+Accelerated Execution matte layers and does not change the selected footage layer's Track Matte.
+
 Run the repository checks and unit tests with `npm run check`.
 
 ## After Effects development install

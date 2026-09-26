@@ -100,3 +100,7 @@ node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-executio
 
 The executor revalidates the source fingerprint, extracts full-resolution anchor frames, runs jobs
 sequentially, and writes `retry-execution-report.json`. It never sends manual-review jobs to SAM.
+
+In the CEP panel, **Import retry mattes in AE** reads that report from the analysis directory's
+`retry-execution` folder and creates managed guide matte layers. The layers are intentionally staged
+without changing the footage layer's Track Matte setting.

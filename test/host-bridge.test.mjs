@@ -75,19 +75,98 @@ class MaskParade {
   }
 }
 
-function createHost({ sourcePath = "/Footage/source.mp4", keys = [], maskNames = [] } = {}) {
+class PropertyParade {
+  constructor(names = []) {
+    this.items = names.map((name) => this.createProperty(name));
+  }
+  get numProperties() { return this.items.length; }
+  property(index) { return this.items[index - 1]; }
+  createProperty(name) {
+    const parade = this;
+    return {
+      name,
+      remove() {
+        const index = parade.items.indexOf(this);
+        if (index >= 0) parade.items.splice(index, 1);
+      },
+    };
+  }
+}
+
+function createHost({
+  sourcePath = "/Footage/source.mp4",
+  keys = [],
+  maskNames = [],
+  effectNames = [],
+  layerNames = [],
+  existingFiles = [],
+} = {}) {
   function CompItem() {}
   function FootageItem() {}
   function MarkerValue(comment) { this.comment = comment; }
   function Shape() {}
+  function File(value) {
+    this.fsName = String(value);
+    this.exists = existingFiles.includes(this.fsName);
+  }
+  function ImportOptions(file) { this.file = file; }
 
   const markers = new MarkerProperty(keys);
   const masks = new MaskParade(maskNames);
+  const effects = new PropertyParade(effectNames);
   const footage = new FootageItem();
   footage.file = { fsName: sourcePath };
   footage.width = 1920;
   footage.height = 1080;
-  const layer = {
+  const comp = new CompItem();
+  comp.name = "Main Comp";
+  comp.frameDuration = 1 / 24;
+  comp._layers = [];
+  Object.defineProperty(comp, "numLayers", { get() { return this._layers.length; } });
+  comp.layer = function (index) { return this._layers[index - 1]; };
+
+  function attachLayerMethods(target, layerMasks, layerEffects) {
+    target._masks = layerMasks;
+    target._effects = layerEffects;
+    target.property = function (name) {
+      if (name === "ADBE Marker" || name === "Marker") return target === layer ? markers : new MarkerProperty();
+      if (name === "ADBE Mask Parade" || name === "Masks") return this._masks;
+      if (name === "ADBE Effect Parade" || name === "Effects") return this._effects;
+      return null;
+    };
+    target.remove = function () {
+      const index = comp._layers.indexOf(this);
+      if (index >= 0) comp._layers.splice(index, 1);
+    };
+    target.moveBefore = function (reference) {
+      const current = comp._layers.indexOf(this);
+      if (current >= 0) comp._layers.splice(current, 1);
+      const destination = comp._layers.indexOf(reference);
+      comp._layers.splice(Math.max(0, destination), 0, this);
+    };
+    target.replaceSource = function (source) { this.source = source; };
+    target.duplicate = function () {
+      const duplicateMasks = new MaskParade(this._masks.items.map((entry) => entry.name));
+      const duplicateEffects = new PropertyParade(this._effects.items.map((entry) => entry.name));
+      const duplicate = attachLayerMethods({
+        name: this.name + " copy",
+        source: this.source,
+        timeRemapEnabled: this.timeRemapEnabled,
+        startTime: this.startTime,
+        stretch: this.stretch,
+        inPoint: this.inPoint,
+        outPoint: this.outPoint,
+        locked: this.locked,
+        trackMatteType: this.trackMatteType,
+      }, duplicateMasks, duplicateEffects);
+      const index = comp._layers.indexOf(this);
+      comp._layers.splice(Math.max(0, index), 0, duplicate);
+      return duplicate;
+    };
+    return target;
+  }
+
+  const layer = attachLayerMethods({
     name: "Footage Layer",
     source: footage,
     timeRemapEnabled: false,
@@ -95,20 +174,44 @@ function createHost({ sourcePath = "/Footage/source.mp4", keys = [], maskNames =
     stretch: 50,
     inPoint: 2,
     outPoint: 8,
-    property(name) {
-      if (name === "ADBE Marker" || name === "Marker") return markers;
-      if (name === "ADBE Mask Parade" || name === "Masks") return masks;
-      return null;
-    },
-  };
-  const comp = new CompItem();
-  comp.name = "Main Comp";
-  comp.frameDuration = 1 / 24;
+  }, masks, effects);
+  comp._layers.push(layer);
+  layerNames.forEach((name) => {
+    comp._layers.push(attachLayerMethods({
+      name,
+      source: footage,
+      timeRemapEnabled: false,
+      startTime: 2,
+      stretch: 50,
+      inPoint: 2,
+      outPoint: 8,
+      locked: name.indexOf("Accelerated Execution Matte | ") === 0,
+    }, new MaskParade(), new PropertyParade()));
+  });
   comp.selectedLayers = [layer];
   const undo = [];
+  const projectItems = [footage];
+  footage.remove = function () {
+    const index = projectItems.indexOf(this);
+    if (index >= 0) projectItems.splice(index, 1);
+  };
+  const project = {
+    activeItem: comp,
+    get numItems() { return projectItems.length; },
+    item(index) { return projectItems[index - 1]; },
+    importFile(options) {
+      const imported = new FootageItem();
+      imported.file = { fsName: options.file.fsName };
+      imported.width = 1920;
+      imported.height = 1080;
+      imported.remove = footage.remove;
+      projectItems.push(imported);
+      return imported;
+    },
+  };
   const context = {
     app: {
-      project: { activeItem: comp },
+      project,
       beginUndoGroup: (name) => undo.push(["begin", name]),
       endUndoGroup: () => undo.push(["end"]),
     },
@@ -116,12 +219,15 @@ function createHost({ sourcePath = "/Footage/source.mp4", keys = [], maskNames =
     FootageItem,
     MarkerValue,
     Shape,
+    File,
+    ImportOptions,
+    TrackMatteType: { NO_TRACK_MATTE: "none" },
     MaskMode: { ADD: "add" },
     KeyframeInterpolationType: { HOLD: "hold" },
     $: { os: "Macintosh" },
   };
   vm.runInNewContext(hostSource, context);
-  return { context, layer, markers, masks, undo };
+  return { context, layer, markers, masks, effects, layers: comp._layers, projectItems, undo };
 }
 
 function plan(sourcePath = "/Footage/source.mp4") {
@@ -186,6 +292,35 @@ function staticMaskPlan() {
 
 function executeStaticMasks(host, value) {
   return JSON.parse(host.context.AE_executeStaticMasks(encodeURIComponent(JSON.stringify(value))));
+}
+
+function retryExecutionReport(maskPath = "/masks/shot-001.png") {
+  return {
+    version: "0.1",
+    retryPlanVersion: "0.1",
+    executedAt: "2026-09-26T12:00:00.000Z",
+    source: { path: "/Footage/source.mp4" },
+    media: { width: 1920, height: 1080 },
+    destination: { compName: "Main Comp", layerName: "Footage Layer" },
+    summary: { completed: 1, failed: 0, skipped: 0 },
+    jobs: [{
+      shotId: "shot-001",
+      status: "completed",
+      engine: "local-ai",
+      action: "sam-segmentation",
+      startTime: 0,
+      endTime: 2,
+      anchorTime: 1,
+      maskPath,
+      width: 1920,
+      height: 1080,
+      confidence: 0.93,
+    }],
+  };
+}
+
+function importRetryMattes(host, value) {
+  return JSON.parse(host.context.AE_importRetryMattes(encodeURIComponent(JSON.stringify(value))));
 }
 
 test("AE_applyScenePlan replaces managed markers and preserves user markers", () => {
@@ -353,4 +488,68 @@ test("AE_executeStaticMasks reports suspicious target coverage", () => {
     message: "shot-001 covers less than 0.1% of the source frame.",
     recommendation: "review-target",
   }]);
+});
+
+test("AE_importRetryMattes replaces managed layers and preserves user content", () => {
+  const maskPath = "/masks/shot-001.png";
+  const host = createHost({
+    maskNames: ["User Mask"],
+    effectNames: ["User Effect"],
+    layerNames: ["User Solid", "Accelerated Execution Matte | old | sam-segmentation"],
+    existingFiles: [maskPath],
+  });
+  const result = importRetryMattes(host, retryExecutionReport(maskPath));
+  assert.deepEqual(result, {
+    ok: true,
+    compName: "Main Comp",
+    sourceLayerName: "Footage Layer",
+    created: 1,
+    replaced: 1,
+    preservedUserLayers: 2,
+    layers: [{
+      shotId: "shot-001",
+      layerName: "Accelerated Execution Matte | shot-001 | sam-segmentation",
+      confidence: 0.93,
+    }],
+  });
+  assert.deepEqual(host.layers.map((layer) => layer.name), [
+    "Accelerated Execution Matte | shot-001 | sam-segmentation",
+    "Footage Layer",
+    "User Solid",
+  ]);
+  const matte = host.layers[0];
+  assert.equal(matte.source.file.fsName, maskPath);
+  assert.equal(matte.inPoint, 2);
+  assert.equal(matte.outPoint, 3);
+  assert.equal(matte.guideLayer, true);
+  assert.equal(matte.audioEnabled, false);
+  assert.equal(matte.enabled, true);
+  assert.equal(matte.solo, false);
+  assert.equal(matte.adjustmentLayer, false);
+  assert.equal(matte.trackMatteType, "none");
+  assert.equal(matte.shy, true);
+  assert.equal(matte.locked, true);
+  assert.equal(matte._masks.numProperties, 0);
+  assert.equal(matte._effects.numProperties, 0);
+  assert.deepEqual(host.masks.items.map((mask) => mask.name), ["User Mask"]);
+  assert.deepEqual(host.effects.items.map((effect) => effect.name), ["User Effect"]);
+  assert.equal(host.projectItems.length, 2);
+  assert.deepEqual(host.undo, [
+    ["begin", "Import Accelerated Execution Retry Mattes"],
+    ["end"],
+  ]);
+
+  const rerun = importRetryMattes(host, retryExecutionReport(maskPath));
+  assert.equal(rerun.ok, true);
+  assert.equal(rerun.replaced, 1);
+  assert.equal(host.projectItems.length, 2);
+});
+
+test("AE_importRetryMattes rejects a missing mask before mutating layers", () => {
+  const host = createHost({ layerNames: ["User Solid"] });
+  const result = importRetryMattes(host, retryExecutionReport("/masks/missing.png"));
+  assert.equal(result.ok, false);
+  assert.match(result.error, /matte file is missing/);
+  assert.deepEqual(host.layers.map((layer) => layer.name), ["Footage Layer", "User Solid"]);
+  assert.deepEqual(host.undo, []);
 });

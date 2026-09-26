@@ -17,7 +17,8 @@ function validateRetryPlan(plan) {
   }
   if (!plan.source || typeof plan.source.path !== "string" || !plan.source.path ||
       !Number.isInteger(plan.source.size) || typeof plan.source.modifiedAt !== "string" ||
-      !plan.source.fingerprint || typeof plan.destination?.compName !== "string" ||
+      !plan.source.fingerprint || !Number.isInteger(plan.media?.width) || plan.media.width < 1 ||
+      !Number.isInteger(plan.media?.height) || plan.media.height < 1 || typeof plan.destination?.compName !== "string" ||
       typeof plan.destination?.layerName !== "string" || !Array.isArray(plan.jobs)) {
     throw new TypeError("Retry plan source and jobs are required.");
   }
@@ -102,6 +103,9 @@ export async function executeRetryPlan(plan, options = {}) {
         target: job.task.target,
         outputDirectory: jobMaskDirectory,
       }, options.samConfig);
+      if (Number(result.width) !== plan.media.width || Number(result.height) !== plan.media.height) {
+        throw new Error("Local SAM mask dimensions do not match the analyzed source.");
+      }
       const maskPath = path.resolve(result.maskPath);
       const relativeMaskPath = path.relative(path.resolve(jobMaskDirectory), maskPath);
       if (relativeMaskPath.startsWith(".." + path.sep) || path.isAbsolute(relativeMaskPath)) {
@@ -114,8 +118,13 @@ export async function executeRetryPlan(plan, options = {}) {
         status: "completed",
         engine: job.task.engine,
         action: job.task.action,
+        startTime: job.startTime,
+        endTime: job.endTime,
+        anchorTime: job.task.anchorTime,
         framePath,
         maskPath,
+        width: result.width,
+        height: result.height,
         confidence: typeof result.confidence === "number" ? result.confidence : null,
         provider: result.provider || "local-sam",
         model: result.model || null,
@@ -137,6 +146,7 @@ export async function executeRetryPlan(plan, options = {}) {
     retryPlanVersion: plan.version,
     executedAt: options.executedAt || new Date().toISOString(),
     source: structuredClone(plan.source),
+    media: structuredClone(plan.media),
     destination: structuredClone(plan.destination),
     outputDirectory,
     summary: {

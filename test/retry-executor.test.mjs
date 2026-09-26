@@ -26,10 +26,11 @@ function retryPlan() {
   return {
     version: "0.1",
     source: source(),
+    media: { width: 1920, height: 1080 },
     destination: { compName: "Main", layerName: "Footage" },
     jobs: [
-      { shotId: "shot-001", automatic: true, task },
-      { shotId: "shot-002", automatic: false, task },
+      { shotId: "shot-001", automatic: true, startTime: 1, endTime: 2, task },
+      { shotId: "shot-002", automatic: false, startTime: 2, endTime: 3, task },
     ],
   };
 }
@@ -52,13 +53,23 @@ test("retry executor extracts a full-resolution anchor and runs local SAM", asyn
       await fs.mkdir(request.outputDirectory, { recursive: true });
       const maskPath = path.join(request.outputDirectory, "mask.png");
       await fs.writeFile(maskPath, "mask");
-      return { ok: true, maskPath, confidence: 0.93, provider: "test-sam", model: "tiny" };
+      return {
+        ok: true,
+        maskPath,
+        confidence: 0.93,
+        provider: "test-sam",
+        model: "tiny",
+        width: 1920,
+        height: 1080,
+      };
     },
   });
 
   assert.deepEqual(report.summary, { completed: 1, failed: 0, skipped: 1 });
   assert.equal(report.executedAt, "2026-09-25T12:00:00.000Z");
   assert.equal(report.jobs[0].confidence, 0.93);
+  assert.equal(report.jobs[0].startTime, 1);
+  assert.equal(report.jobs[0].anchorTime, 1.5);
   assert.equal(report.jobs[1].status, "skipped");
   assert.deepEqual(calls.map((call) => call.kind), ["extract", "segment"]);
   assert.equal(calls[0].time, 1.5);
@@ -105,7 +116,7 @@ test("retry executor rejects a SAM mask outside its job directory", async (conte
       await fs.writeFile(output, "frame");
       return output;
     },
-    segmentImage: async () => ({ ok: true, maskPath: outsideMask }),
+    segmentImage: async () => ({ ok: true, maskPath: outsideMask, width: 1920, height: 1080 }),
   });
   assert.equal(report.summary.failed, 1);
   assert.match(report.jobs[0].message, /outside the requested output directory/);

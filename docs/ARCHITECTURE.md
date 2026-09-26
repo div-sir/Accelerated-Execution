@@ -129,3 +129,10 @@ bound model memory use. It verifies the current footage fingerprint, extracts a 
 at each task's canonical anchor timestamp, sends the normalized target to the loopback SAM worker,
 and writes a durable per-job execution report. Manual-review jobs are skipped, unsupported providers
 are reported as failures, and a returned mask must exist inside its requested output directory.
+
+Completed SAM outputs can be staged back into the destination composition as managed guide matte
+layers. The host bridge verifies the destination composition, selected source layer, source path,
+dimensions, shot timing, and mask-file existence before opening one undo group. Each matte duplicates
+the source layer to preserve its transform, replaces the source with the full-resolution mask, clears
+copied masks and effects, and is clipped to its shot. Re-import removes only layers carrying the
+Accelerated Execution matte prefix; it does not assign a Track Matte or alter user layers.

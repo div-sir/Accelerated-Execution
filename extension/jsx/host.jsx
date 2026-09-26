@@ -426,3 +426,201 @@ function AE_executeStaticMasks(encodedScenePlan) {
     return AE_json({ ok: false, error: error.toString() });
   }
 }
+
+function AE_findFootageByPath(filePath) {
+  var itemIndex;
+  for (itemIndex = 1; itemIndex <= app.project.numItems; itemIndex += 1) {
+    var projectItem = app.project.item(itemIndex);
+    if (projectItem && projectItem instanceof FootageItem && projectItem.file &&
+        AE_normalizePath(projectItem.file.fsName) === AE_normalizePath(filePath)) {
+      return projectItem;
+    }
+  }
+  return null;
+}
+
+function AE_removeAllProperties(group) {
+  if (!group || typeof group.numProperties !== "number") return;
+  var propertyIndex;
+  for (propertyIndex = group.numProperties; propertyIndex >= 1; propertyIndex -= 1) {
+    var child = group.property(propertyIndex);
+    if (child && typeof child.remove === "function") child.remove();
+  }
+}
+
+function AE_importRetryMattes(encodedReport) {
+  var undoStarted = false;
+  var importedItems = [];
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before importing retry mattes." });
+    }
+    if (!item.selectedLayers.length) {
+      return AE_json({ ok: false, error: "Select the analyzed footage layer in the active composition." });
+    }
+    var layer = item.selectedLayers[0];
+    if (!layer.source || !(layer.source instanceof FootageItem) || !layer.source.file) {
+      return AE_json({ ok: false, error: "The selected layer is not local footage." });
+    }
+    if (layer.timeRemapEnabled) {
+      return AE_json({ ok: false, error: "Retry matte import does not support time-remapped layers." });
+    }
+    if (layer.locked) {
+      return AE_json({ ok: false, error: "Unlock the selected footage layer before importing retry mattes." });
+    }
+    if (!isFinite(Number(layer.stretch)) || Number(layer.stretch) === 0) {
+      return AE_json({ ok: false, error: "The selected layer has an invalid stretch value." });
+    }
+
+    var report = JSON.parse(decodeURIComponent(String(encodedReport)));
+    if (!report || report.version !== "0.1" || report.retryPlanVersion !== "0.1" ||
+        !report.source || !report.source.path || !report.media || !report.destination) {
+      return AE_json({ ok: false, error: "The retry execution report is incomplete or unsupported." });
+    }
+    if (AE_normalizePath(layer.source.file.fsName) !== AE_normalizePath(report.source.path)) {
+      return AE_json({ ok: false, error: "The selected layer is not the footage used by this retry report." });
+    }
+    if (String(report.destination.compName) !== String(item.name) ||
+        String(report.destination.layerName) !== String(layer.name)) {
+      return AE_json({ ok: false, error: "The retry report targets a different composition or layer." });
+    }
+    if (Number(report.media.width) !== Number(layer.source.width) ||
+        Number(report.media.height) !== Number(layer.source.height)) {
+      return AE_json({ ok: false, error: "The retry report dimensions differ from the selected footage." });
+    }
+    if (!report.jobs || typeof report.jobs.length !== "number") {
+      return AE_json({ ok: false, error: "The retry execution report has no job outcomes." });
+    }
+
+    var planned = [];
+    var shotIds = {};
+    var completedCount = 0;
+    var jobIndex;
+    var tolerance = Math.max(0.000001, item.frameDuration / 4);
+    for (jobIndex = 0; jobIndex < report.jobs.length; jobIndex += 1) {
+      var job = report.jobs[jobIndex];
+      if (!job || job.status !== "completed") continue;
+      completedCount += 1;
+      var shotId = String(job.shotId || "");
+      if (!shotId || shotIds[shotId]) {
+        return AE_json({ ok: false, error: "Completed retry jobs require unique shot IDs." });
+      }
+      shotIds[shotId] = true;
+      if (job.engine !== "local-ai" || job.action !== "sam-segmentation") {
+        return AE_json({ ok: false, error: "Only completed local-ai sam-segmentation jobs can be imported." });
+      }
+      if (!job.maskPath || Number(job.width) !== Number(report.media.width) ||
+          Number(job.height) !== Number(report.media.height)) {
+        return AE_json({ ok: false, error: "Retry matte dimensions or path are invalid for " + shotId + "." });
+      }
+      var maskFile = new File(String(job.maskPath));
+      if (!maskFile.exists) {
+        return AE_json({ ok: false, error: "Retry matte file is missing for " + shotId + "." });
+      }
+      var sourceStart = Number(job.startTime);
+      var sourceEnd = Number(job.endTime);
+      var anchorTime = Number(job.anchorTime);
+      if (!isFinite(sourceStart) || !isFinite(sourceEnd) || !isFinite(anchorTime) ||
+          sourceStart < 0 || sourceEnd <= sourceStart || anchorTime < sourceStart || anchorTime >= sourceEnd) {
+        return AE_json({ ok: false, error: "Retry matte time bounds are invalid for " + shotId + "." });
+      }
+      var mappedStart = layer.startTime + sourceStart * (layer.stretch / 100);
+      var mappedEnd = layer.startTime + sourceEnd * (layer.stretch / 100);
+      var visibleStart = Math.max(layer.inPoint, Math.min(mappedStart, mappedEnd));
+      var visibleEnd = Math.min(layer.outPoint, Math.max(mappedStart, mappedEnd));
+      if (visibleEnd - visibleStart <= tolerance) {
+        return AE_json({ ok: false, error: "Retry matte shot is outside the selected layer range: " + shotId + "." });
+      }
+      planned.push({
+        shotId: shotId,
+        maskPath: maskFile.fsName,
+        inPoint: visibleStart,
+        outPoint: visibleEnd,
+        confidence: Number(job.confidence)
+      });
+    }
+    if (report.summary && Number(report.summary.completed) !== completedCount) {
+      return AE_json({ ok: false, error: "Retry report summary does not match its completed jobs." });
+    }
+    if (!planned.length) {
+      return AE_json({ ok: false, error: "The retry execution report has no completed mattes to import." });
+    }
+
+    var layerPrefix = "Accelerated Execution Matte | ";
+    var managedLayers = [];
+    var layerIndex;
+    for (layerIndex = 1; layerIndex <= item.numLayers; layerIndex += 1) {
+      var existingLayer = item.layer(layerIndex);
+      if (existingLayer && String(existingLayer.name).indexOf(layerPrefix) === 0) managedLayers.push(existingLayer);
+    }
+    var preservedUserLayers = item.numLayers - managedLayers.length;
+
+    app.beginUndoGroup("Import Accelerated Execution Retry Mattes");
+    undoStarted = true;
+    for (jobIndex = 0; jobIndex < planned.length; jobIndex += 1) {
+      var entry = planned[jobIndex];
+      var maskSource = AE_findFootageByPath(entry.maskPath);
+      if (!maskSource) {
+        maskSource = app.project.importFile(new ImportOptions(new File(entry.maskPath)));
+        importedItems.push(maskSource);
+      }
+      if (!maskSource || Number(maskSource.width) !== Number(report.media.width) ||
+          Number(maskSource.height) !== Number(report.media.height)) {
+        throw new Error("Imported matte dimensions do not match the source for " + entry.shotId + ".");
+      }
+      entry.source = maskSource;
+    }
+    for (layerIndex = managedLayers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+      managedLayers[layerIndex].locked = false;
+      managedLayers[layerIndex].remove();
+    }
+    var created = [];
+    for (jobIndex = 0; jobIndex < planned.length; jobIndex += 1) {
+      var plannedEntry = planned[jobIndex];
+      var matteLayer = layer.duplicate();
+      matteLayer.locked = false;
+      matteLayer.replaceSource(plannedEntry.source, false);
+      AE_removeAllProperties(matteLayer.property("ADBE Mask Parade") || matteLayer.property("Masks"));
+      AE_removeAllProperties(matteLayer.property("ADBE Effect Parade") || matteLayer.property("Effects"));
+      matteLayer.name = layerPrefix + plannedEntry.shotId + " | sam-segmentation";
+      matteLayer.comment = "Managed by Accelerated Execution; source layer: " + layer.name;
+      matteLayer.inPoint = plannedEntry.inPoint;
+      matteLayer.outPoint = plannedEntry.outPoint;
+      matteLayer.guideLayer = true;
+      matteLayer.audioEnabled = false;
+      matteLayer.enabled = true;
+      matteLayer.solo = false;
+      matteLayer.adjustmentLayer = false;
+      if (typeof TrackMatteType !== "undefined") matteLayer.trackMatteType = TrackMatteType.NO_TRACK_MATTE;
+      matteLayer.shy = true;
+      matteLayer.moveBefore(layer);
+      matteLayer.locked = true;
+      created.push({
+        shotId: plannedEntry.shotId,
+        layerName: matteLayer.name,
+        confidence: isFinite(plannedEntry.confidence) ? plannedEntry.confidence : null
+      });
+    }
+    app.endUndoGroup();
+    undoStarted = false;
+    return AE_json({
+      ok: true,
+      compName: item.name,
+      sourceLayerName: layer.name,
+      created: created.length,
+      replaced: managedLayers.length,
+      preservedUserLayers: preservedUserLayers,
+      layers: created
+    });
+  } catch (error) {
+    var importedIndex;
+    for (importedIndex = importedItems.length - 1; importedIndex >= 0; importedIndex -= 1) {
+      try { importedItems[importedIndex].remove(); } catch (removeError) {}
+    }
+    if (undoStarted) {
+      try { app.endUndoGroup(); } catch (undoError) {}
+    }
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}
