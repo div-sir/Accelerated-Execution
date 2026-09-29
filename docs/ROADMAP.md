@@ -49,6 +49,8 @@
 - [x] Convert execution outcomes into automatic fallback and manual-review jobs.
 - [x] Execute local SAM retry jobs from full-resolution anchors.
 - [x] Import completed SAM masks as managed AE guide matte layers.
+- [x] Build rerunnable SAM luma-matted foreground stacks.
+- [x] Place a selected lyric or graphic overlay between managed foreground and background.
 - [ ] Execute native AE and other provider retry jobs automatically.
 
 ## v0.4 - Smart Track
@@ -63,7 +65,7 @@
 - [ ] Ground Paint.
 - [ ] Wall Art.
 - [ ] Particle Scatter.
-- [ ] Foreground occlusion.
+- [x] Foreground occlusion with managed SAM luma stacks.
 - [ ] Prompt to effect parameters.
 
 ## v0.6 - Distribution

@@ -136,3 +136,12 @@ dimensions, shot timing, and mask-file existence before opening one undo group. 
 the source layer to preserve its transform, replaces the source with the full-resolution mask, clears
 copied masks and effects, and is clipped to its shot. Re-import removes only layers carrying the
 Accelerated Execution matte prefix; it does not assign a Track Matte or alter user layers.
+
+Foreground construction is a separate, explicit operation after matte review. It duplicates the
+selected source footage for each managed shot, preserves the source layer's transforms, masks, and
+effects, clips the duplicate to the matte span, and connects it with After Effects' `setTrackMatte`
+API using a luma matte. Re-running replaces only managed foreground duplicates. The original source
+remains untouched as the background. Overlay placement moves one explicitly selected lyric or graphic
+layer immediately above that source, below all managed foreground pairs. Track-matte relationships
+therefore do not depend on adjacency, while the visible layer order still communicates the intended
+foreground / overlay / background composite.

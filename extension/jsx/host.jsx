@@ -624,3 +624,174 @@ function AE_importRetryMattes(encodedReport) {
     return AE_json({ ok: false, error: error.toString() });
   }
 }
+
+function AE_buildForegroundMatteStack() {
+  var undoStarted = false;
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before building the foreground stack." });
+    }
+    if (!item.selectedLayers.length) {
+      return AE_json({ ok: false, error: "Select the analyzed footage layer in the active composition." });
+    }
+    var sourceLayer = item.selectedLayers[0];
+    if (!sourceLayer.source || !(sourceLayer.source instanceof FootageItem) || !sourceLayer.source.file) {
+      return AE_json({ ok: false, error: "The selected layer is not local footage." });
+    }
+    if (sourceLayer.locked) {
+      return AE_json({ ok: false, error: "Unlock the selected footage layer before building the foreground stack." });
+    }
+    var mattePrefix = "Accelerated Execution Matte | ";
+    var foregroundPrefix = "Accelerated Execution Foreground | ";
+    var mattes = [];
+    var managedForegrounds = [];
+    var layerIndex;
+    for (layerIndex = 1; layerIndex <= item.numLayers; layerIndex += 1) {
+      var candidate = item.layer(layerIndex);
+      if (!candidate) continue;
+      if (String(candidate.name).indexOf(mattePrefix) === 0) mattes.push(candidate);
+      if (String(candidate.name).indexOf(foregroundPrefix) === 0) managedForegrounds.push(candidate);
+    }
+    if (!mattes.length) {
+      return AE_json({ ok: false, error: "Import completed SAM retry mattes before building the foreground stack." });
+    }
+    if (typeof sourceLayer.setTrackMatte !== "function" || typeof TrackMatteType === "undefined") {
+      return AE_json({ ok: false, error: "This After Effects version does not expose the required Track Matte API." });
+    }
+    var seenShots = {};
+    var planned = [];
+    for (layerIndex = 0; layerIndex < mattes.length; layerIndex += 1) {
+      var matte = mattes[layerIndex];
+      var suffix = String(matte.name).substring(mattePrefix.length);
+      var delimiter = suffix.indexOf(" | ");
+      var shotId = delimiter >= 0 ? suffix.substring(0, delimiter) : suffix;
+      if (!shotId || seenShots[shotId]) {
+        return AE_json({ ok: false, error: "Managed SAM mattes require unique shot IDs." });
+      }
+      seenShots[shotId] = true;
+      if (!(Number(matte.inPoint) < Number(matte.outPoint)) ||
+          Number(matte.inPoint) < Number(sourceLayer.inPoint) ||
+          Number(matte.outPoint) > Number(sourceLayer.outPoint)) {
+        return AE_json({ ok: false, error: "Managed matte timing is invalid for " + shotId + "." });
+      }
+      planned.push({ shotId: shotId, matte: matte });
+    }
+
+    app.beginUndoGroup("Build Accelerated Execution Foreground Stack");
+    undoStarted = true;
+    for (layerIndex = managedForegrounds.length - 1; layerIndex >= 0; layerIndex -= 1) {
+      managedForegrounds[layerIndex].locked = false;
+      managedForegrounds[layerIndex].remove();
+    }
+    var created = [];
+    for (layerIndex = 0; layerIndex < planned.length; layerIndex += 1) {
+      var entry = planned[layerIndex];
+      var foreground = sourceLayer.duplicate();
+      foreground.locked = false;
+      if (typeof foreground.removeTrackMatte === "function") foreground.removeTrackMatte();
+      foreground.name = foregroundPrefix + entry.shotId + " | luma";
+      foreground.comment = "Managed by Accelerated Execution; SAM foreground for " + entry.shotId;
+      foreground.inPoint = entry.matte.inPoint;
+      foreground.outPoint = entry.matte.outPoint;
+      foreground.guideLayer = false;
+      foreground.audioEnabled = false;
+      foreground.enabled = true;
+      foreground.solo = false;
+      foreground.adjustmentLayer = false;
+      entry.matte.locked = false;
+      entry.matte.guideLayer = false;
+      entry.matte.solo = false;
+      entry.matte.adjustmentLayer = false;
+      foreground.moveBefore(sourceLayer);
+      entry.matte.moveBefore(foreground);
+      foreground.setTrackMatte(entry.matte, TrackMatteType.LUMA);
+      entry.matte.locked = true;
+      foreground.locked = true;
+      created.push({
+        shotId: entry.shotId,
+        matteLayerName: entry.matte.name,
+        foregroundLayerName: foreground.name
+      });
+    }
+    app.endUndoGroup();
+    undoStarted = false;
+    return AE_json({
+      ok: true,
+      compName: item.name,
+      sourceLayerName: sourceLayer.name,
+      created: created.length,
+      replaced: managedForegrounds.length,
+      layers: created
+    });
+  } catch (error) {
+    if (undoStarted) {
+      try { app.endUndoGroup(); } catch (undoError) {}
+    }
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}
+
+function AE_placeSelectedOverlay(encodedSourcePath) {
+  var undoStarted = false;
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before placing an overlay." });
+    }
+    if (!item.selectedLayers || item.selectedLayers.length !== 2) {
+      return AE_json({ ok: false, error: "Select exactly the source footage layer and one overlay layer." });
+    }
+    var expectedPath = decodeURIComponent(String(encodedSourcePath));
+    var sourceLayer = null;
+    var overlayLayer = null;
+    var selectedIndex;
+    for (selectedIndex = 0; selectedIndex < item.selectedLayers.length; selectedIndex += 1) {
+      var selected = item.selectedLayers[selectedIndex];
+      if (selected.source && selected.source instanceof FootageItem && selected.source.file &&
+          AE_normalizePath(selected.source.file.fsName) === AE_normalizePath(expectedPath)) {
+        sourceLayer = selected;
+      } else {
+        overlayLayer = selected;
+      }
+    }
+    if (!sourceLayer || !overlayLayer) {
+      return AE_json({ ok: false, error: "The selection must contain the analyzed footage and one overlay layer." });
+    }
+    var overlayName = String(overlayLayer.name || "");
+    if (overlayName.indexOf("Accelerated Execution Matte | ") === 0 ||
+        overlayName.indexOf("Accelerated Execution Foreground | ") === 0) {
+      return AE_json({ ok: false, error: "Select a lyric or graphic overlay, not a managed matte layer." });
+    }
+    var foregroundCount = 0;
+    var layerIndex;
+    for (layerIndex = 1; layerIndex <= item.numLayers; layerIndex += 1) {
+      if (String(item.layer(layerIndex).name).indexOf("Accelerated Execution Foreground | ") === 0) {
+        foregroundCount += 1;
+      }
+    }
+    if (!foregroundCount) {
+      return AE_json({ ok: false, error: "Build the SAM foreground stack before placing an overlay." });
+    }
+    if (overlayLayer.locked) {
+      return AE_json({ ok: false, error: "Unlock the overlay layer before placing it." });
+    }
+    app.beginUndoGroup("Place Overlay Between SAM Foreground and Background");
+    undoStarted = true;
+    overlayLayer.moveBefore(sourceLayer);
+    app.endUndoGroup();
+    undoStarted = false;
+    return AE_json({
+      ok: true,
+      compName: item.name,
+      sourceLayerName: sourceLayer.name,
+      overlayLayerName: overlayLayer.name,
+      foregroundLayers: foregroundCount
+    });
+  } catch (error) {
+    if (undoStarted) {
+      try { app.endUndoGroup(); } catch (undoError) {}
+    }
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}

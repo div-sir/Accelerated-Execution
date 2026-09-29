@@ -145,6 +145,14 @@ function createHost({
       comp._layers.splice(Math.max(0, destination), 0, this);
     };
     target.replaceSource = function (source) { this.source = source; };
+    target.removeTrackMatte = function () {
+      this.trackMatteLayer = null;
+      this.trackMatteType = "none";
+    };
+    target.setTrackMatte = function (matteLayer, matteType) {
+      this.trackMatteLayer = matteLayer;
+      this.trackMatteType = matteType;
+    };
     target.duplicate = function () {
       const duplicateMasks = new MaskParade(this._masks.items.map((entry) => entry.name));
       const duplicateEffects = new PropertyParade(this._effects.items.map((entry) => entry.name));
@@ -221,7 +229,7 @@ function createHost({
     Shape,
     File,
     ImportOptions,
-    TrackMatteType: { NO_TRACK_MATTE: "none" },
+    TrackMatteType: { NO_TRACK_MATTE: "none", LUMA: "luma" },
     MaskMode: { ADD: "add" },
     KeyframeInterpolationType: { HOLD: "hold" },
     $: { os: "Macintosh" },
@@ -321,6 +329,14 @@ function retryExecutionReport(maskPath = "/masks/shot-001.png") {
 
 function importRetryMattes(host, value) {
   return JSON.parse(host.context.AE_importRetryMattes(encodeURIComponent(JSON.stringify(value))));
+}
+
+function buildForegroundStack(host) {
+  return JSON.parse(host.context.AE_buildForegroundMatteStack());
+}
+
+function placeOverlay(host, sourcePath = "/Footage/source.mp4") {
+  return JSON.parse(host.context.AE_placeSelectedOverlay(encodeURIComponent(sourcePath)));
 }
 
 test("AE_applyScenePlan replaces managed markers and preserves user markers", () => {
@@ -552,4 +568,75 @@ test("AE_importRetryMattes rejects a missing mask before mutating layers", () =>
   assert.match(result.error, /matte file is missing/);
   assert.deepEqual(host.layers.map((layer) => layer.name), ["Footage Layer", "User Solid"]);
   assert.deepEqual(host.undo, []);
+});
+
+test("AE_buildForegroundMatteStack creates rerunnable luma-matted foreground layers", () => {
+  const maskPath = "/masks/shot-001.png";
+  const host = createHost({
+    maskNames: ["User Mask"],
+    effectNames: ["User Effect"],
+    layerNames: ["User Overlay"],
+    existingFiles: [maskPath],
+  });
+  assert.equal(importRetryMattes(host, retryExecutionReport(maskPath)).ok, true);
+  const result = buildForegroundStack(host);
+  assert.deepEqual(result, {
+    ok: true,
+    compName: "Main Comp",
+    sourceLayerName: "Footage Layer",
+    created: 1,
+    replaced: 0,
+    layers: [{
+      shotId: "shot-001",
+      matteLayerName: "Accelerated Execution Matte | shot-001 | sam-segmentation",
+      foregroundLayerName: "Accelerated Execution Foreground | shot-001 | luma",
+    }],
+  });
+  assert.deepEqual(host.layers.map((layer) => layer.name), [
+    "Accelerated Execution Matte | shot-001 | sam-segmentation",
+    "Accelerated Execution Foreground | shot-001 | luma",
+    "Footage Layer",
+    "User Overlay",
+  ]);
+  const matte = host.layers[0];
+  const foreground = host.layers[1];
+  assert.equal(matte.guideLayer, false);
+  assert.equal(matte.locked, true);
+  assert.equal(foreground.trackMatteLayer, matte);
+  assert.equal(foreground.trackMatteType, "luma");
+  assert.equal(foreground.inPoint, matte.inPoint);
+  assert.equal(foreground.outPoint, matte.outPoint);
+  assert.deepEqual(foreground._masks.items.map((mask) => mask.name), ["User Mask"]);
+  assert.deepEqual(foreground._effects.items.map((effect) => effect.name), ["User Effect"]);
+  assert.deepEqual(host.masks.items.map((mask) => mask.name), ["User Mask"]);
+  assert.deepEqual(host.effects.items.map((effect) => effect.name), ["User Effect"]);
+
+  const rerun = buildForegroundStack(host);
+  assert.equal(rerun.ok, true);
+  assert.equal(rerun.replaced, 1);
+  assert.equal(host.layers.filter((layer) => layer.name.indexOf("Accelerated Execution Foreground | ") === 0).length, 1);
+});
+
+test("AE_placeSelectedOverlay positions graphics between SAM foreground and source background", () => {
+  const maskPath = "/masks/shot-001.png";
+  const host = createHost({ layerNames: ["JIZURA Lyrics"], existingFiles: [maskPath] });
+  assert.equal(importRetryMattes(host, retryExecutionReport(maskPath)).ok, true);
+  assert.equal(buildForegroundStack(host).ok, true);
+  const overlay = host.layers.find((layer) => layer.name === "JIZURA Lyrics");
+  overlay.source = new host.context.CompItem();
+  host.context.app.project.activeItem.selectedLayers = [host.layer, overlay];
+  const result = placeOverlay(host);
+  assert.deepEqual(result, {
+    ok: true,
+    compName: "Main Comp",
+    sourceLayerName: "Footage Layer",
+    overlayLayerName: "JIZURA Lyrics",
+    foregroundLayers: 1,
+  });
+  assert.deepEqual(host.layers.map((layer) => layer.name), [
+    "Accelerated Execution Matte | shot-001 | sam-segmentation",
+    "Accelerated Execution Foreground | shot-001 | luma",
+    "JIZURA Lyrics",
+    "Footage Layer",
+  ]);
 });

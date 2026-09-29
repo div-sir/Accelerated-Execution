@@ -103,4 +103,8 @@ sequentially, and writes `retry-execution-report.json`. It never sends manual-re
 
 In the CEP panel, **Import retry mattes in AE** reads that report from the analysis directory's
 `retry-execution` folder and creates managed guide matte layers. The layers are intentionally staged
-without changing the footage layer's Track Matte setting.
+without changing the footage layer's Track Matte setting. After reviewing them, select the source
+footage and click **Build SAM foreground stack** to create managed, time-clipped foreground duplicates
+connected to the masks as luma track mattes. The source stays intact as the background. Select that
+source and one lyric or graphic layer, then click **Place selected overlay between** to put the overlay
+below the SAM foreground and above the background.

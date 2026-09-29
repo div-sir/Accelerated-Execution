@@ -86,6 +86,17 @@ node sidecar/cli.mjs execute-retries ./retry-plan.json --output ./retry-executio
 When the retry output is stored under the current analysis directory, **Import retry mattes in AE**
 loads completed SAM masks as locked, managed guide layers. Re-importing replaces only prior
 Accelerated Execution matte layers and does not change the selected footage layer's Track Matte.
+After reviewing the staged masks, select the source footage and choose **Build SAM foreground
+stack**. The panel creates a time-clipped source duplicate for every mask and explicitly connects
+each duplicate to its SAM luma matte. The untouched source remains the background. To composite
+lyrics or graphics behind the subject, select the source plus one overlay layer and choose **Place
+selected overlay between**. The resulting logical stack is:
+
+1. SAM matte and matted source duplicate (foreground)
+2. Lyric or graphic overlay
+3. Original source footage (background)
+
+The overlay can be a JIZURA-generated lyric composition or any other After Effects layer.
 
 Run the repository checks and unit tests with `npm run check`.
 

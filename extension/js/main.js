@@ -6,6 +6,8 @@
   var applyButton = document.getElementById("apply");
   var executeButton = document.getElementById("execute");
   var importMattesButton = document.getElementById("import-mattes");
+  var buildForegroundButton = document.getElementById("build-foreground");
+  var placeOverlayButton = document.getElementById("place-overlay");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
@@ -355,7 +357,8 @@
           var result = JSON.parse(raw);
           status.textContent = result.ok
             ? "Imported " + result.created + " managed guide matte layer(s)" +
-              (result.replaced ? "; replaced " + result.replaced + " previous layer(s)." : ".")
+              (result.replaced ? "; replaced " + result.replaced + " previous layer(s)." : ".") +
+              "\nSelect the source footage layer, then build the SAM foreground stack."
             : result.error;
         } catch (error) {
           status.textContent = raw;
@@ -365,6 +368,43 @@
       importMattesButton.disabled = false;
       status.textContent = "Retry matte import failed: " + error.message;
     }
+  }
+
+  function buildForegroundStack() {
+    buildForegroundButton.disabled = true;
+    status.textContent = "Building managed SAM foreground layers…";
+    evalHost("AE_buildForegroundMatteStack()", function (raw) {
+      buildForegroundButton.disabled = false;
+      try {
+        var result = JSON.parse(raw);
+        status.textContent = result.ok
+          ? "Built " + result.created + " luma-matted foreground layer(s)" +
+            (result.replaced ? "; replaced " + result.replaced + " previous foreground layer(s)." : ".") +
+            "\nTo place lyrics or graphics, select the source footage and one overlay layer."
+          : result.error;
+      } catch (error) {
+        status.textContent = raw;
+      }
+    });
+  }
+
+  function placeSelectedOverlay() {
+    if (!currentAnalysis) return;
+    placeOverlayButton.disabled = true;
+    status.textContent = "Placing the selected overlay between SAM foreground and background…";
+    var sourcePath = encodeURIComponent(currentAnalysis.source.path);
+    evalHost("AE_placeSelectedOverlay(\"" + sourcePath + "\")", function (raw) {
+      placeOverlayButton.disabled = false;
+      try {
+        var result = JSON.parse(raw);
+        status.textContent = result.ok
+          ? "Placed " + result.overlayLayerName + " below " + result.foregroundLayers +
+            " SAM foreground layer(s) and above " + result.sourceLayerName + "."
+          : result.error;
+      } catch (error) {
+        status.textContent = raw;
+      }
+    });
   }
 
   function startLocalAnalysis(footage) {
@@ -379,6 +419,8 @@
     applyButton.disabled = true;
     executeButton.disabled = true;
     importMattesButton.disabled = true;
+    buildForegroundButton.disabled = true;
+    placeOverlayButton.disabled = true;
     exportButton.disabled = true;
     activeAnalysis = AESidecar.startAnalysis({ source: footage.path, extensionPath: extensionPath }, {
       onProgress: function (event) { status.textContent = stageMessage(event); },
@@ -389,6 +431,8 @@
         applyButton.disabled = false;
         exportButton.disabled = false;
         importMattesButton.disabled = false;
+        buildForegroundButton.disabled = false;
+        placeOverlayButton.disabled = false;
         currentAnalysis = analysis;
         currentOutputDirectory = outputDirectory;
         try {
@@ -448,6 +492,8 @@
   applyButton.addEventListener("click", applyScenePlan);
   executeButton.addEventListener("click", executeStaticMasks);
   importMattesButton.addEventListener("click", importRetryMattes);
+  buildForegroundButton.addEventListener("click", buildForegroundStack);
+  placeOverlayButton.addEventListener("click", placeSelectedOverlay);
   document.getElementById("task").addEventListener("change", function () {
     updateTaskControls();
     if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);
