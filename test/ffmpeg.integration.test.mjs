@@ -62,6 +62,8 @@ test("FFmpeg integration preserves CFR frames and treats VFR timestamps as canon
     candidatesPerShot: 1,
     threshold: 0.99,
   });
+  assert.equal(analysis.settings.frameMetricsEngine, "python");
+  assert.equal(analysis.settings.frameMetricsFallback, undefined);
   assert.equal(analysis.source.fingerprint.algorithm, "sha256-sampled-v1");
   assert.match(analysis.source.fingerprint.value, /^[a-f0-9]{64}$/);
   assert.equal(analysis.shots.length, 1);
@@ -73,4 +75,14 @@ test("FFmpeg integration preserves CFR frames and treats VFR timestamps as canon
   assert.equal(plan.shots[0].tasks[0].anchorTime, analysis.shots[0].selected.timeSeconds);
   assert.equal(plan.source.fingerprint.value, analysis.source.fingerprint.value);
   assert.equal(validateScenePlan(plan).valid, true);
+
+  const fallbackAnalysis = await analyzeFootage(vfrInput, {
+    candidatesPerShot: 1,
+    threshold: 0.99,
+    previews: false,
+    python: path.join(directory, "missing-python"),
+  });
+  assert.equal(fallbackAnalysis.settings.frameMetricsEngine, "javascript-fallback");
+  assert.match(fallbackAnalysis.settings.frameMetricsFallback, /ENOENT|spawn/);
+  assert.ok(Number.isFinite(fallbackAnalysis.shots[0].selected.score));
 });

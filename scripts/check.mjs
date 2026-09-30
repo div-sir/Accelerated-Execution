@@ -23,10 +23,12 @@ const required = [
   "sidecar/execution-report.mjs",
   "sidecar/keyframe-score.mjs",
   "sidecar/matte-quality.mjs",
+  "sidecar/python-preparation.mjs",
   "sidecar/retry-plan.mjs",
   "sidecar/retry-executor.mjs",
   "sidecar/providers/local-sam.mjs",
   "tools/local_sam_worker.py",
+  "tools/preparation_worker.py",
   "sidecar/scene-plan.mjs",
   "scripts/cep.mjs",
 ];

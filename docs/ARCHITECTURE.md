@@ -35,7 +35,11 @@ Footage
 
 A keyframe is task-specific. Do not use one global keyframe for a shot.
 
-The local analyzer scores candidate frames using sharpness, motion, visibility, occlusion, and trackability. Vision MAY choose between a small candidate set. AE MUST validate the result by executing the track. Failed spans are re-initialized from a new anchor.
+The local analyzer scores candidate frames using sharpness, motion, visibility, occlusion, and
+trackability. FFmpeg decodes bounded grayscale frames and the Python preparation worker computes the
+metrics and weighted scores in one batch. A compatible JavaScript implementation remains as an
+explicitly reported availability fallback. Vision MAY choose between a small candidate set. AE MUST
+validate the result by executing the track. Failed spans are re-initialized from a new anchor.
 
 Timestamps are canonical throughout analysis and scene plans. Frame numbers MAY be included for
 confirmed constant-frame-rate footage, but MUST NOT be synthesized from an average frame rate for

@@ -30,7 +30,10 @@ The analyzer detects scene cuts, samples three timestamps per shot, calculates d
 sharpness, stability, visibility, and trackability metrics, ranks the candidates, and writes
 `analysis.json` plus JPEG previews. Timestamps are canonical so variable-frame-rate footage is not
 forced onto an inaccurate average-frame-rate timeline. CFR inputs also receive source-frame labels.
-No footage leaves the machine.
+No footage leaves the machine. Candidate metrics and ranking run through the Python preparation
+worker by default. If Python is unavailable, `analysis.json` records and uses a compatible JavaScript
+fallback; Python 3.11 or newer is recommended, and `AE_PYTHON_PATH` can point to a specific Python
+executable.
 
 In the CEP panel, select a footage layer (or a footage item in the Project panel) and choose
 **Prepare selected footage**. This is the primary workflow. The panel detects shots, ranks candidate

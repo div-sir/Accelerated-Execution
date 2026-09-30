@@ -31,6 +31,19 @@ Python MAY:
 
 Python MUST NOT duplicate After Effects rendering, animation interpolation, compositing, motion blur, or color management.
 
+## Current integration
+
+FFmpeg still decodes the 160×90 grayscale candidate frames. The Node sidecar sends those frames to
+the Python worker in one bounded batch over standard input. Python computes sharpness, temporal
+stability, visibility, trackability, and the weighted candidate score, then returns compact JSON.
+This keeps media decoding deterministic while moving CV-oriented scoring behind the Python boundary.
+
+If the worker cannot start or returns invalid data, preparation continues with the equivalent
+JavaScript implementation unless strict Python scoring was requested. Every `analysis.json` records
+`settings.frameMetricsEngine` as `python` or `javascript-fallback`; fallback results also include
+`settings.frameMetricsFallback` so degraded environments are visible rather than silent. Set
+`AE_PYTHON_PATH` when Python is not available as `python3` on macOS/Linux or `python` on Windows.
+
 ## Preparation package
 
 Each job writes a self-contained directory:

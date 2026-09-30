@@ -27,7 +27,8 @@
 - [x] Make prepare-only workflow the default.
 - [x] Define Python as the CV/ML preparation layer.
 - [x] Add reusable preparation package layout.
-- [ ] Move frame metrics and detection orchestration into the Python worker.
+- [x] Move frame metrics and candidate scoring into the Python worker with an explicit fallback.
+- [ ] Move detection orchestration into the Python worker.
 - [x] Automatically keep the highest-ranked working frame for every shot.
 - [x] Write a preparation manifest without modifying the AE composition.
 - [x] Move execution controls behind an optional section.

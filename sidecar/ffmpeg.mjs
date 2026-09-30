@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { frameMetrics, rankCandidates } from "./keyframe-score.mjs";
+import { scoreFrameBatch } from "./python-preparation.mjs";
 
 function progress(options, stage, details = {}) {
   if (typeof options.onProgress === "function") options.onProgress({ stage, ...details });
@@ -196,7 +197,7 @@ export async function analyzeCandidates(input, candidates, media, options = {}) 
   const ffmpeg = options.ffmpeg || process.env.AE_FFMPEG_PATH || "ffmpeg";
   const referenceRate = media.averageFrameRate || media.nominalFrameRate || 24;
   const offset = Math.min(0.1, 1 / referenceRate * 2);
-  const analyzed = [];
+  const decoded = [];
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
     const [previous, current, next] = await Promise.all([
@@ -204,16 +205,42 @@ export async function analyzeCandidates(input, candidates, media, options = {}) 
       extractGrayFrame(input, candidate.time, ffmpeg, options.signal),
       extractGrayFrame(input, Math.min(candidate.shotEnd - 0.001, candidate.time + offset), ffmpeg, options.signal),
     ]);
+    decoded.push({ previous, current, next });
+    progress(options, "candidates", { completed: index + 1, total: candidates.length });
+  }
+  let scored = null;
+  let metricEngine = "javascript-fallback";
+  let fallbackReason = null;
+  if (options.pythonMetrics !== false) {
+    try {
+      scored = await scoreFrameBatch(decoded, {
+        python: options.python,
+        workerPath: options.preparationWorker,
+        signal: options.signal,
+        width: 160,
+        height: 90,
+      });
+      metricEngine = "python";
+    } catch (error) {
+      if (options.signal?.aborted || error.name === "AbortError") throw (options.signal?.reason || error);
+      if (options.requirePythonMetrics) throw error;
+      fallbackReason = error.message;
+    }
+  } else {
+    fallbackReason = "Python metrics were disabled.";
+  }
+  if (typeof options.onMetricEngine === "function") options.onMetricEngine(metricEngine, fallbackReason);
+  return candidates.map((candidate, index) => {
     const { time, ...candidateMetadata } = candidate;
-    analyzed.push({
+    const result = scored && scored[index];
+    return {
       ...candidateMetadata,
       timeSeconds: candidate.time,
       sourceFrame: media.frameRateMode === "cfr" ? Math.round(candidate.time * referenceRate) : null,
-      metrics: frameMetrics(current, previous, next),
-    });
-    progress(options, "candidates", { completed: index + 1, total: candidates.length });
-  }
-  return analyzed;
+      metrics: result ? result.metrics : frameMetrics(decoded[index].current, decoded[index].previous, decoded[index].next),
+      ...(result ? { score: result.score } : {}),
+    };
+  });
 }
 
 export async function writePreviews(input, candidates, outputDirectory, options = {}) {
@@ -242,10 +269,22 @@ export async function analyzeFootage(input, options = {}) {
   const cuts = await detectSceneCuts(input, options);
   const candidateTimes = buildCandidateTimes(media.duration, cuts, options.candidatesPerShot || 3);
   progress(options, "candidates", { completed: 0, total: candidateTimes.length });
-  const analyzed = await analyzeCandidates(input, candidateTimes, media, options);
+  let frameMetricsEngine = "javascript-fallback";
+  let frameMetricsFallback = null;
+  const analyzed = await analyzeCandidates(input, candidateTimes, media, {
+    ...options,
+    onMetricEngine(engine, reason) {
+      frameMetricsEngine = engine;
+      frameMetricsFallback = reason;
+      if (typeof options.onMetricEngine === "function") options.onMetricEngine(engine, reason);
+    },
+  });
   const shots = [];
   for (let index = 0; index < cuts.length + 1; index += 1) {
-    const ranked = rankCandidates(analyzed.filter((candidate) => candidate.shotIndex === index));
+    const shotCandidates = analyzed.filter((candidate) => candidate.shotIndex === index);
+    const ranked = shotCandidates.every((candidate) => Number.isFinite(candidate.score))
+      ? shotCandidates.slice().sort((left, right) => right.score - left.score)
+      : rankCandidates(shotCandidates);
     shots.push({
       id: `shot-${String(index + 1).padStart(3, "0")}`,
       startTime: index === 0 ? 0 : cuts[index - 1],
@@ -260,5 +299,7 @@ export async function analyzeFootage(input, options = {}) {
     await writePreviews(input, previewCandidates, options.outputDirectory, options);
   }
   progress(options, "complete", { shots: shots.length });
-  return { version: "0.1", source, media, settings: { sceneThreshold: options.threshold || 0.3 }, cuts, shots };
+  const settings = { sceneThreshold: options.threshold || 0.3, frameMetricsEngine };
+  if (frameMetricsFallback) settings.frameMetricsFallback = frameMetricsFallback;
+  return { version: "0.1", source, media, settings, cuts, shots };
 }
