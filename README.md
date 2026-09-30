@@ -96,7 +96,13 @@ selected overlay between**. The resulting logical stack is:
 2. Lyric or graphic overlay
 3. Original source footage (background)
 
-The overlay can be a JIZURA-generated lyric composition or any other After Effects layer.
+The overlay can be a JIZURA-generated lyric composition or any other After Effects layer. JIZURA's
+**Export for AE** JSON can also be loaded with **Import JIZURA timing markers**. Select exactly one
+JIZURA overlay layer first. The importer validates the JSON, maps its detected beats, lyric starts,
+and beat-snapped cuts through the layer's start time and stretch, and groups events that land on the
+same composition frame. Re-importing replaces only Accelerated Execution JIZURA markers and refuses
+to overwrite a user marker. Time-remapped layers are rejected rather than silently drifting out of
+sync.
 
 Run the repository checks and unit tests with `npm run check`.
 

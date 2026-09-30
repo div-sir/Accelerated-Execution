@@ -54,6 +54,7 @@
 - [x] Import completed SAM masks as managed AE guide matte layers.
 - [x] Build rerunnable SAM luma-matted foreground stacks.
 - [x] Place a selected lyric or graphic overlay between managed foreground and background.
+- [x] Import JIZURA beat, lyric, and beat-snapped cut timing as safe managed AE markers.
 - [ ] Execute native AE and other provider retry jobs automatically.
 
 ## v0.4 - Smart Track

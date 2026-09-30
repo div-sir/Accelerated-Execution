@@ -125,11 +125,12 @@ function createHost({
   Object.defineProperty(comp, "numLayers", { get() { return this._layers.length; } });
   comp.layer = function (index) { return this._layers[index - 1]; };
 
-  function attachLayerMethods(target, layerMasks, layerEffects) {
+  function attachLayerMethods(target, layerMasks, layerEffects, layerMarkers = new MarkerProperty()) {
     target._masks = layerMasks;
     target._effects = layerEffects;
+    target._markers = layerMarkers;
     target.property = function (name) {
-      if (name === "ADBE Marker" || name === "Marker") return target === layer ? markers : new MarkerProperty();
+      if (name === "ADBE Marker" || name === "Marker") return this._markers;
       if (name === "ADBE Mask Parade" || name === "Masks") return this._masks;
       if (name === "ADBE Effect Parade" || name === "Effects") return this._effects;
       return null;
@@ -166,7 +167,7 @@ function createHost({
         outPoint: this.outPoint,
         locked: this.locked,
         trackMatteType: this.trackMatteType,
-      }, duplicateMasks, duplicateEffects);
+      }, duplicateMasks, duplicateEffects, new MarkerProperty(this._markers.keys));
       const index = comp._layers.indexOf(this);
       comp._layers.splice(Math.max(0, index), 0, duplicate);
       return duplicate;
@@ -182,7 +183,7 @@ function createHost({
     stretch: 50,
     inPoint: 2,
     outPoint: 8,
-  }, masks, effects);
+  }, masks, effects, markers);
   comp._layers.push(layer);
   layerNames.forEach((name) => {
     comp._layers.push(attachLayerMethods({
@@ -337,6 +338,10 @@ function buildForegroundStack(host) {
 
 function placeOverlay(host, sourcePath = "/Footage/source.mp4") {
   return JSON.parse(host.context.AE_placeSelectedOverlay(encodeURIComponent(sourcePath)));
+}
+
+function applyJizuraTiming(host, value) {
+  return JSON.parse(host.context.AE_applyJizuraTiming(encodeURIComponent(JSON.stringify(value))));
 }
 
 test("AE_applyScenePlan replaces managed markers and preserves user markers", () => {
@@ -639,4 +644,60 @@ test("AE_placeSelectedOverlay positions graphics between SAM foreground and sour
     "JIZURA Lyrics",
     "Footage Layer",
   ]);
+});
+
+test("AE_applyJizuraTiming groups beat-snapped events and replaces only managed markers", () => {
+  const host = createHost({ layerNames: ["JIZURA Lyrics"] });
+  const overlay = host.layers.find((layer) => layer.name === "JIZURA Lyrics");
+  overlay.source = new host.context.CompItem();
+  overlay._markers.setValueAtTime(3.5, new host.context.MarkerValue("Director note"));
+  host.context.app.project.activeItem.selectedLayers = [overlay];
+  const timing = {
+    format: "accelerated-execution/jizura-timing",
+    version: 1,
+    duration: 12,
+    beats: [0, 1, 2],
+    lines: [{ index: 0, start: 1, text: "Hello" }],
+    cuts: [{ index: 0, start: 1, text: "Hello" }],
+  };
+  const result = applyJizuraTiming(host, timing);
+  assert.deepEqual(result, {
+    ok: true,
+    compName: "Main Comp",
+    layerName: "JIZURA Lyrics",
+    added: 3,
+    replaced: 0,
+    skipped: 0,
+    beats: 3,
+    lines: 1,
+    cuts: 1,
+  });
+  assert.deepEqual(overlay._markers.keys.map((entry) => entry.time), [2, 2.5, 3, 3.5]);
+  assert.match(overlay._markers.keys[1].value.comment, /beat 2 \/ line 1 \| Hello \/ cut 1 \| Hello/);
+  assert.equal(overlay._markers.keys[3].value.comment, "Director note");
+
+  const rerun = applyJizuraTiming(host, timing);
+  assert.equal(rerun.ok, true);
+  assert.equal(rerun.replaced, 3);
+  assert.equal(overlay._markers.keys.filter((entry) => entry.value.comment.indexOf("Accelerated Execution JIZURA | ") === 0).length, 3);
+  assert.equal(overlay._markers.keys.some((entry) => entry.value.comment === "Director note"), true);
+});
+
+test("AE_applyJizuraTiming refuses to overwrite a user marker", () => {
+  const host = createHost({ layerNames: ["JIZURA Lyrics"] });
+  const overlay = host.layers.find((layer) => layer.name === "JIZURA Lyrics");
+  overlay.source = new host.context.CompItem();
+  overlay._markers.setValueAtTime(2.5, new host.context.MarkerValue("Keep me"));
+  host.context.app.project.activeItem.selectedLayers = [overlay];
+  const result = applyJizuraTiming(host, {
+    format: "accelerated-execution/jizura-timing",
+    version: 1,
+    duration: 5,
+    beats: [1],
+    lines: [],
+    cuts: [],
+  });
+  assert.match(result.error, /user marker already occupies/);
+  assert.equal(overlay._markers.numKeys, 1);
+  assert.equal(host.undo.length, 0);
 });

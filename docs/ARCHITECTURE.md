@@ -145,3 +145,11 @@ remains untouched as the background. Overlay placement moves one explicitly sele
 layer immediately above that source, below all managed foreground pairs. Track-matte relationships
 therefore do not depend on adjacency, while the visible layer order still communicates the intended
 foreground / overlay / background composite.
+
+JIZURA integration consumes its version 1 or 2 **Export for AE** plan rather than analyzing the song
+a second time. The panel normalizes and bounds the plan's `beats`, `lines`, and `cuts` before sending a
+compact timing payload to the host. The host maps source times through the selected overlay layer's
+start time and stretch, snaps them to composition frames, and combines coincident beat, lyric, and cut
+events into managed layer markers. It preflights all collisions before opening one undo group,
+preserves user-authored markers, and replaces only markers carrying the Accelerated Execution JIZURA
+prefix. Time-remapped layers are unsupported and fail without mutation.

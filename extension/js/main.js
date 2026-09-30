@@ -8,6 +8,8 @@
   var importMattesButton = document.getElementById("import-mattes");
   var buildForegroundButton = document.getElementById("build-foreground");
   var placeOverlayButton = document.getElementById("place-overlay");
+  var jizuraPlanInput = document.getElementById("jizura-plan");
+  var importJizuraButton = document.getElementById("import-jizura");
   var exportButton = document.getElementById("export");
   var results = document.getElementById("results");
   var currentAnalysis = null;
@@ -407,6 +409,41 @@
     });
   }
 
+  function importJizuraTiming() {
+    var selectedFile = jizuraPlanInput.files && jizuraPlanInput.files[0];
+    if (!selectedFile) return;
+    importJizuraButton.disabled = true;
+    status.textContent = "Validating JIZURA timing data…";
+    try {
+      if (typeof require !== "function") throw new Error("CEP Node.js integration is unavailable.");
+      var filePath = selectedFile.path;
+      if (!filePath) throw new Error("The selected JIZURA file path is unavailable.");
+      var fs = require("fs");
+      var fileSize = fs.statSync(filePath).size;
+      if (fileSize > 10 * 1024 * 1024) throw new Error("The JIZURA JSON file exceeds the 10 MB safety limit.");
+      var timing = AEJizuraPlan.normalizePlan(JSON.parse(fs.readFileSync(filePath, "utf8")));
+      var payload = encodeURIComponent(JSON.stringify(timing));
+      status.textContent = "Applying beat, lyric, and cut markers to the selected JIZURA layer…";
+      evalHost("AE_applyJizuraTiming(\"" + payload + "\")", function (raw) {
+        importJizuraButton.disabled = false;
+        try {
+          var result = JSON.parse(raw);
+          status.textContent = result.ok
+            ? "Imported " + result.added + " JIZURA timing marker(s) from " + result.beats + " beats, " +
+              result.lines + " lyric starts, and " + result.cuts + " cuts" +
+              (result.replaced ? "; replaced " + result.replaced + " previous marker(s)" : "") +
+              (result.skipped ? "; skipped " + result.skipped + " event(s) outside the layer trim." : ".")
+            : result.error;
+        } catch (error) {
+          status.textContent = raw;
+        }
+      });
+    } catch (error) {
+      importJizuraButton.disabled = false;
+      status.textContent = "JIZURA import failed: " + error.message;
+    }
+  }
+
   function startLocalAnalysis(footage) {
     if (typeof require !== "function" || typeof process === "undefined") {
       throw new Error("CEP Node.js integration is unavailable. Check the extension manifest.");
@@ -494,6 +531,10 @@
   importMattesButton.addEventListener("click", importRetryMattes);
   buildForegroundButton.addEventListener("click", buildForegroundStack);
   placeOverlayButton.addEventListener("click", placeSelectedOverlay);
+  importJizuraButton.addEventListener("click", importJizuraTiming);
+  jizuraPlanInput.addEventListener("change", function () {
+    importJizuraButton.disabled = !(jizuraPlanInput.files && jizuraPlanInput.files.length);
+  });
   document.getElementById("task").addEventListener("change", function () {
     updateTaskControls();
     if (currentAnalysis && currentOutputDirectory) renderResults(currentAnalysis, currentOutputDirectory);

@@ -795,3 +795,143 @@ function AE_placeSelectedOverlay(encodedSourcePath) {
     return AE_json({ ok: false, error: error.toString() });
   }
 }
+
+function AE_applyJizuraTiming(encodedPlan) {
+  var undoStarted = false;
+  try {
+    var item = app.project.activeItem;
+    if (!item || !(item instanceof CompItem)) {
+      return AE_json({ ok: false, error: "Open or select a composition before importing JIZURA timing." });
+    }
+    if (!item.selectedLayers || item.selectedLayers.length !== 1) {
+      return AE_json({ ok: false, error: "Select exactly one JIZURA overlay layer." });
+    }
+    var layer = item.selectedLayers[0];
+    if (layer.locked) {
+      return AE_json({ ok: false, error: "Unlock the selected JIZURA layer before importing timing." });
+    }
+    if (layer.timeRemapEnabled) {
+      return AE_json({ ok: false, error: "JIZURA timing import does not support time-remapped layers." });
+    }
+    var stretch = Number(layer.stretch);
+    if (!isFinite(stretch) || stretch === 0) {
+      return AE_json({ ok: false, error: "The selected JIZURA layer has an invalid stretch value." });
+    }
+    var markerProperty = layer.property("ADBE Marker") || layer.property("Marker");
+    if (!markerProperty) {
+      return AE_json({ ok: false, error: "The selected JIZURA layer does not expose markers." });
+    }
+    var plan = JSON.parse(decodeURIComponent(String(encodedPlan)));
+    if (!plan || plan.format !== "accelerated-execution/jizura-timing" || Number(plan.version) !== 1) {
+      return AE_json({ ok: false, error: "The JIZURA timing payload is unsupported." });
+    }
+    if (!(Number(plan.duration) > 0) || Number(plan.duration) > 86400) {
+      return AE_json({ ok: false, error: "The JIZURA timing duration is invalid." });
+    }
+    if (!Array.isArray(plan.beats) || !Array.isArray(plan.lines) || !Array.isArray(plan.cuts)) {
+      return AE_json({ ok: false, error: "The JIZURA timing payload is incomplete." });
+    }
+    if (plan.beats.length > 10000 || plan.lines.length > 5000 || plan.cuts.length > 10000) {
+      return AE_json({ ok: false, error: "The JIZURA timing payload exceeds supported limits." });
+    }
+    var prefix = "Accelerated Execution JIZURA | ";
+    var tolerance = Number(item.frameDuration) / 4;
+    if (!(tolerance > 0)) tolerance = 1 / 120;
+    var events = [];
+    var counts = { beats: 0, lines: 0, cuts: 0 };
+
+    function addEvent(sourceTime, label, type) {
+      sourceTime = Number(sourceTime);
+      if (!isFinite(sourceTime) || sourceTime < 0 || sourceTime >= Number(plan.duration)) {
+        throw new Error("Invalid JIZURA " + type + " time.");
+      }
+      var compTime = Number(layer.startTime) + sourceTime * (stretch / 100);
+      events.push({ sourceTime: sourceTime, compTime: compTime, label: label, type: type });
+      counts[type] += 1;
+    }
+
+    var eventIndex;
+    for (eventIndex = 0; eventIndex < plan.beats.length; eventIndex += 1) {
+      addEvent(plan.beats[eventIndex], "beat " + String(eventIndex + 1), "beats");
+    }
+    for (eventIndex = 0; eventIndex < plan.lines.length; eventIndex += 1) {
+      var line = plan.lines[eventIndex];
+      if (!line || typeof line !== "object") throw new Error("Invalid JIZURA lyric entry.");
+      addEvent(line.start, "line " + String(Number(line.index) + 1) + (line.text ? " | " + String(line.text) : ""), "lines");
+    }
+    for (eventIndex = 0; eventIndex < plan.cuts.length; eventIndex += 1) {
+      var cut = plan.cuts[eventIndex];
+      if (!cut || typeof cut !== "object") throw new Error("Invalid JIZURA cut entry.");
+      addEvent(cut.start, "cut " + String(Number(cut.index) + 1) + (cut.text ? " | " + String(cut.text) : ""), "cuts");
+    }
+
+    var grouped = {};
+    var skipped = 0;
+    for (eventIndex = 0; eventIndex < events.length; eventIndex += 1) {
+      var event = events[eventIndex];
+      if (event.compTime < Number(layer.inPoint) - tolerance || event.compTime >= Number(layer.outPoint) - tolerance) {
+        skipped += 1;
+        continue;
+      }
+      var frame = Math.round(event.compTime / Number(item.frameDuration));
+      var key = String(frame);
+      if (!grouped[key]) grouped[key] = { compTime: frame * Number(item.frameDuration), labels: [] };
+      grouped[key].labels.push(event.label);
+    }
+    var planned = [];
+    var groupKey;
+    for (groupKey in grouped) {
+      if (grouped.hasOwnProperty(groupKey)) planned.push(grouped[groupKey]);
+    }
+    planned.sort(function (left, right) { return left.compTime - right.compTime; });
+    if (!planned.length) {
+      return AE_json({ ok: false, error: "No JIZURA timing events fall inside the selected layer trim." });
+    }
+
+    var managedKeys = [];
+    var keyIndex;
+    for (keyIndex = 1; keyIndex <= markerProperty.numKeys; keyIndex += 1) {
+      var existing = markerProperty.keyValue(keyIndex);
+      if (existing && String(existing.comment).indexOf(prefix) === 0) managedKeys.push(keyIndex);
+    }
+    for (eventIndex = 0; eventIndex < planned.length; eventIndex += 1) {
+      for (keyIndex = 1; keyIndex <= markerProperty.numKeys; keyIndex += 1) {
+        var markerValue = markerProperty.keyValue(keyIndex);
+        var isManaged = markerValue && String(markerValue.comment).indexOf(prefix) === 0;
+        if (!isManaged && Math.abs(markerProperty.keyTime(keyIndex) - planned[eventIndex].compTime) < tolerance) {
+          return AE_json({ ok: false, error: "A user marker already occupies a JIZURA timing frame." });
+        }
+      }
+    }
+
+    app.beginUndoGroup("Import JIZURA Timing Markers");
+    undoStarted = true;
+    for (keyIndex = managedKeys.length - 1; keyIndex >= 0; keyIndex -= 1) {
+      markerProperty.removeKey(managedKeys[keyIndex]);
+    }
+    for (eventIndex = 0; eventIndex < planned.length; eventIndex += 1) {
+      var entry = planned[eventIndex];
+      var marker = new MarkerValue(prefix + entry.labels.join(" / "));
+      marker.chapter = "JIZURA";
+      markerProperty.setValueAtTime(entry.compTime, marker);
+    }
+    app.endUndoGroup();
+    undoStarted = false;
+    return AE_json({
+      ok: true,
+      compName: item.name,
+      layerName: layer.name,
+      added: planned.length,
+      replaced: managedKeys.length,
+      skipped: skipped,
+      beats: counts.beats,
+      lines: counts.lines,
+      cuts: counts.cuts
+    });
+  } catch (error) {
+    if (undoStarted) {
+      try { app.endUndoGroup(); } catch (undoError) {}
+    }
+    return AE_json({ ok: false, error: error.toString() });
+  }
+}
